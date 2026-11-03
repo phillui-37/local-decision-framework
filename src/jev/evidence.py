@@ -61,7 +61,7 @@ def summarize(ref):
   scope.append(f'sum of all {len(rows)} Maven surefire totals lines')
  else:
   g={}
-  for m in GEN.finditer(text):g[m.group(2).lower()]=int(m.group(1))
+  for m in GEN.finditer(text):g[m.group(2).lower()]=g.get(m.group(2).lower(),0)+int(m.group(1))
   if g: counts.update(passed=g.get('passed'),failed=g.get('failed'),skipped=g.get('skipped'),errors=0,tests_total=sum(g.values()));scope.append('generic passed/failed/skipped phrases')
  events=[]
  for i,line in enumerate(ls,1):

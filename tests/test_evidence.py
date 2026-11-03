@@ -7,6 +7,15 @@ class EvidenceTests(unittest.TestCase):
   self.tmp=tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup); self.env=patch.dict(os.environ,{'JEV_DATA_DIR':self.tmp.name}); self.env.start(); self.addCleanup(self.env.stop)
  def source(self,text):
   p=pathlib.Path(self.tmp.name)/'input.txt'; p.write_text(text); return evidence.register(str(p))
+ def test_generic_phrases_sum_across_occurrences(self):
+  from jev.evidence import register, summarize
+  with tempfile.TemporaryDirectory() as d:
+   os.environ['JEV_DATA_DIR']=d
+   try:
+    f=pathlib.Path(d,'g.log'); f.write_text('1 failed\n0 failed\n')
+    s=summarize(register(str(f))['ref_id'])
+    self.assertEqual(s['counts']['failed'],1); self.assertEqual(s['status'],'fail')
+   finally: os.environ.pop('JEV_DATA_DIR',None)
  def test_maven_and_fetch(self):
   r=self.source('Tests run: 4, Failures: 1, Errors: 0, Skipped: 1\n09:03:02 [main] ERROR app - bad\n')
   s=evidence.summarize(r['ref_id']); self.assertEqual(s['counts']['tests_total'],4); self.assertEqual(s['first_failure']['line'],2)
