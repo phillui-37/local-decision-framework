@@ -55,7 +55,10 @@ def summarize(ref):
  r,ls=_source(ref); text='\n'.join(ls); totals=[MAVEN.search(x) for x in ls]; totals=[x for x in totals if x]
  counts={k:None for k in ('tests_total','passed','failed','errors','skipped','log_errors','log_warns')}; scope=[]
  if totals:
-  t,f,e,s=map(int,totals[-1].groups()); counts.update(tests_total=t,passed=t-f-e-s,failed=f,errors=e,skipped=s); scope.append('last Maven surefire totals line')
+  rows=[tuple(map(int,x.groups())) for x in totals]; t=sum(x[0] for x in rows); f=sum(x[1] for x in rows); e=sum(x[2] for x in rows); s=sum(x[3] for x in rows)
+  counts.update(tests_total=t,passed=t-f-e-s,failed=f,errors=e,skipped=s)
+  if len(rows)>1: counts['totals_occurrences']=len(rows)
+  scope.append(f'sum of all {len(rows)} Maven surefire totals lines')
  else:
   g={}
   for m in GEN.finditer(text):g[m.group(2).lower()]=int(m.group(1))
@@ -73,7 +76,7 @@ def summarize(ref):
  success=success_signal and counts['failed']==0 and counts['errors']==0 and counts['log_errors']==0
  status='fail' if fail else ('pass' if success else 'unknown')
  detection_scope='; '.join(scope) or 'checked Maven totals, generic test totals, ERROR/WARN header patterns, and build status patterns'
- return {'status':status,'counts':counts,'detection_scope':detection_scope,'detection_notes':'Log counts are matches of recognized ERROR/WARN header patterns only; 0 matches does not establish absence. Error detection is limited to recognized test totals, build status markers, and ERROR header patterns; unrecognized formats may not be detected.','first_failure':first,'display':{'shown_event_count':min(10,len(events)),'total_event_count':len(events),'complete':len(events)<=10},'recovery':{'ref_id':ref,'fetch_hint':f'ldf source fetch {ref} --errors all'},'source':{'sha256':r['sha256'],'line_count':r['line_count'],'bytes':r['bytes']}}
+ return {'status':status,'counts':counts,'detection_scope':detection_scope,'detection_notes':'Log counts are matches of recognized ERROR/WARN header patterns only; 0 matches does not establish absence. Error detection is limited to recognized test totals, build status markers, and ERROR header patterns; unrecognized formats may not be detected.','first_failure':first,'display':{'shown_event_count':min(10,len(events)),'total_event_count':len(events),'complete':len(events)<=10},'preview_events':[{'line':i,'level':lev,'message':msg[:200]} for lev,i,msg in events[:10]],'recovery':{'ref_id':ref,'fetch_hint':f'ldf source fetch {ref} --errors all'},'source':{'sha256':r['sha256'],'line_count':r['line_count'],'bytes':r['bytes']}}
 def fetch(ref,lines=None,errors=None,pattern=None,context=2):
  r,src=_source(ref); c=max(0,min(int(context),20)); chosen=[]; truncated=False; total=None
  if lines:

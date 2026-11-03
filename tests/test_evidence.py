@@ -19,8 +19,15 @@ class EvidenceTests(unittest.TestCase):
   with self.assertRaises(evidence.EvidenceError) as e:evidence.fetch(r['ref_id'],lines='1:1')
   self.assertEqual(e.exception.code,'source_unavailable')
  def test_summary_preview_and_modes(self):
-  r=self.source('preview 0 errors\n'+''.join(f'ERROR failure {i}\n' for i in range(15)))
-  s=evidence.summarize(r['ref_id']); self.assertEqual(s['display']['total_event_count'],15); self.assertEqual(s['display']['shown_event_count'],10); self.assertFalse(s['display']['complete'])
+  r=self.source('preview 0 errors\n'+''.join(f'ERROR failure {i}\n' for i in range(12)))
+  s=evidence.summarize(r['ref_id']); self.assertEqual(s['display'],{'shown_event_count':10,'total_event_count':12,'complete':False})
+  self.assertEqual(len(s['preview_events']),10); self.assertTrue(all(1<=x['line']<=13 for x in s['preview_events']))
+  self.assertTrue(all(set(x)=={'line','level','message'} and x['level']=='ERROR' and len(x['message'])<=200 for x in s['preview_events']))
+ def test_summary_preview_complete_and_empty(self):
+  r=self.source('ERROR one\nWARN two\n'); s=evidence.summarize(r['ref_id'])
+  self.assertEqual(s['display'],{'shown_event_count':2,'total_event_count':2,'complete':True}); self.assertEqual(len(s['preview_events']),2)
+  r=self.source('no events\n'); s=evidence.summarize(r['ref_id'])
+  self.assertEqual(s['display'],{'shown_event_count':0,'total_event_count':0,'complete':True}); self.assertEqual(s['preview_events'],[])
  def test_generic_and_limit(self):
   r=self.source('3 passed, 1 failed, 2 skipped\n')
   self.assertEqual(evidence.summarize(r['ref_id'])['status'],'fail')
@@ -40,10 +47,20 @@ class EvidenceTests(unittest.TestCase):
   self.assertEqual(result['status'],'unknown')
   self.assertTrue(all(result['counts'][k] is None for k in ('tests_total','passed','failed','errors','skipped')))
   self.assertIn('detection_scope',result); self.assertIn('detection_notes',result)
- def test_last_maven_total_wins_with_multidigit_values(self):
+ def test_maven_totals_are_summed(self):
   r=self.source('Tests run: 123, Failures: 4, Errors: 2, Skipped: 10\nTests run: 234, Failures: 12, Errors: 3, Skipped: 20\n')
   counts=evidence.summarize(r['ref_id'])['counts']
-  self.assertEqual((counts['tests_total'],counts['failed'],counts['errors'],counts['skipped'],counts['passed']),(234,12,3,20,199))
+  self.assertEqual((counts['tests_total'],counts['failed'],counts['errors'],counts['skipped'],counts['passed']),(357,16,5,30,306))
+  self.assertEqual(counts['totals_occurrences'],2)
+ def test_earlier_maven_failure_survives_later_clean_module(self):
+  r=self.source('Tests run: 5, Failures: 1, Errors: 0, Skipped: 0\nTests run: 3, Failures: 0, Errors: 0, Skipped: 0\n')
+  s=evidence.summarize(r['ref_id'])
+  self.assertEqual(s['status'],'fail'); self.assertEqual((s['counts']['tests_total'],s['counts']['passed'],s['counts']['failed']),(8,7,1))
+ def test_single_maven_total_has_no_occurrence_extra(self):
+  r=self.source('Tests run: 3, Failures: 0, Errors: 0, Skipped: 0\n')
+  s=evidence.summarize(r['ref_id'])
+  self.assertEqual((s['status'],s['counts']['tests_total'],s['counts']['passed'],s['counts']['failed']),('pass',3,3,0))
+  self.assertNotIn('totals_occurrences',s['counts'])
  def test_fetch_truncation_and_totals(self):
   r=self.source('before\n'+''.join(f'ERROR problem {i}\n' for i in range(5))+'after\n')
   empty=evidence.fetch(r['ref_id'],lines='1:1')
