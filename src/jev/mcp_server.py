@@ -17,7 +17,7 @@ def jev_check_claim(claim:str=Field(description='Claim to assess using only the 
  except Rejected as e:return {'status':'rejected','error_code':e.code,'error':str(e)}
 @mcp.tool()
 def jev_summarize_output(source_ref:str)->dict:
- """Summarize a registered output deterministically without model calls. The source hash is checked and stale or missing sources return stable errors. Counts cover only named detectable patterns; a summary never proves absence of errors or events."""
+ """Summarize a registered output deterministically without model calls. The source hash is checked and stale or missing sources return stable errors. Log counts are counts of recognized header pattern matches; 0 matches does not establish absence of errors or events."""
  try:return evidence.summarize(source_ref)
  except evidence.EvidenceError as e:return {'status':'error','error_code':e.code,**e.details}
 @mcp.tool()

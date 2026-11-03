@@ -195,7 +195,7 @@ class Targeted(unittest.TestCase):
   import asyncio
   async def run():
    with tempfile.TemporaryDirectory() as d:
-    output=pathlib.Path(d,'output.txt'); output.write_text('2 passed\n')
+    output=pathlib.Path(d,'output.txt'); output.write_text('Tests run: 2, Failures: 0, Errors: 0, Skipped: 0\n')
     env=dict(os.environ,PYTHONPATH='src',JEV_DATA_DIR=str(pathlib.Path(d,'data')))
     async with stdio_client(StdioServerParameters(command=sys.executable,args=['-m','jev.mcp_server'],env=env)) as (rd,wr):
      async with ClientSession(rd,wr) as session:

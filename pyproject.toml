@@ -5,7 +5,7 @@ build-backend="setuptools.build_meta"
 name="local-decision-framework"
 description="Local-first, evidence-grounded claim checks over MCP and CLI"
 readme="README.md"
-version="0.2.0"
+version="0.2.1"
 requires-python=">=3.10"
 dependencies=["mcp>=1.30,<2"]
 [project.scripts]

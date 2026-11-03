@@ -66,29 +66,37 @@ def summarize(ref):
   if level in ('ERROR','WARN'):
    events.append((level,i,msg)); k='log_errors' if level=='ERROR' else 'log_warns'; counts[k]=(counts[k] or 0)+1
  counts['log_errors']=counts['log_errors'] or 0; counts['log_warns']=counts['log_warns'] or 0
- scope.append('ERROR/WARN header lines; not stack-trace frames')
+ scope.append('ERROR/WARN header patterns run over the whole file; log counts are matches of these header patterns only; 0 matches does not establish the source contains no errors')
  first=next(({'name':m[:200] or 'ERROR','line':i} for lev,i,m in events if lev=='ERROR'),None)
- fail=bool(counts['failed'] or counts['errors'] or re.search(r'BUILD FAILURE|status=FAIL',text,re.I))
- status='fail' if fail else ('pass' if 'BUILD SUCCESS' in text or counts['passed'] is not None and not counts['failed'] and not counts['errors'] else 'unknown')
- return {'status':status,'counts':counts,'detection_scope':'; '.join(scope) or 'checked Maven totals, generic test totals, ERROR/WARN header lines, and build status patterns','first_failure':first,'display':{'shown_event_count':min(10,len(events)),'total_event_count':len(events),'complete':len(events)<=10},'recovery':{'ref_id':ref,'fetch_hint':f'ldf source fetch {ref} --errors all'},'source':{'sha256':r['sha256'],'line_count':r['line_count'],'bytes':r['bytes']}}
+ fail=bool((counts['failed'] or 0)>0 or (counts['errors'] or 0)>0 or counts['log_errors']>0 or re.search(r'BUILD FAILURE|status=FAIL',text,re.I))
+ success_signal=bool(re.search(r'BUILD SUCCESS',text,re.I) or counts['tests_total'] is not None or counts['passed'] is not None)
+ success=success_signal and counts['failed']==0 and counts['errors']==0 and counts['log_errors']==0
+ status='fail' if fail else ('pass' if success else 'unknown')
+ detection_scope='; '.join(scope) or 'checked Maven totals, generic test totals, ERROR/WARN header patterns, and build status patterns'
+ return {'status':status,'counts':counts,'detection_scope':detection_scope,'detection_notes':'Log counts are matches of recognized ERROR/WARN header patterns only; 0 matches does not establish absence. Error detection is limited to recognized test totals, build status markers, and ERROR header patterns; unrecognized formats may not be detected.','first_failure':first,'display':{'shown_event_count':min(10,len(events)),'total_event_count':len(events),'complete':len(events)<=10},'recovery':{'ref_id':ref,'fetch_hint':f'ldf source fetch {ref} --errors all'},'source':{'sha256':r['sha256'],'line_count':r['line_count'],'bytes':r['bytes']}}
 def fetch(ref,lines=None,errors=None,pattern=None,context=2):
- r,src=_source(ref); c=max(0,min(int(context),20)); chosen=[]
+ r,src=_source(ref); c=max(0,min(int(context),20)); chosen=[]; truncated=False; total=None
  if lines:
   m=re.fullmatch(r'(\d+):(\d+)',lines)
   if not m:raise EvidenceError('invalid_lines')
   a,b=map(int,m.groups())
   if a<1 or b<a or b-a+1>200:raise EvidenceError('fetch_limit_exceeded')
-  chosen=list(range(a,min(b,len(src))+1))
+  chosen=list(range(a,min(b,len(src))+1)); truncated=b>len(src)
  elif errors:
-  hits=[i for i,x in enumerate(src,1) if _level(x)[0]=='ERROR']; m=re.search(r'(\d+)',errors); target=hits if errors=='all' else hits[:int(m.group(1)) if m else 20]
+  hits=[i for i,x in enumerate(src,1) if _level(x)[0]=='ERROR']; total=len(hits); m=re.search(r'(\d+)',errors); target=hits if errors=='all' else hits[:int(m.group(1)) if m else 20]
   if len(target)>20:raise EvidenceError('fetch_limit_exceeded')
+  truncated=len(target)<total
   chosen=sorted({n for i in target for n in range(max(1,i-c),min(len(src),i+c)+1)})
  elif pattern is not None:
-  hits=[i for i,x in enumerate(src,1) if pattern in x]
+  hits=[i for i,x in enumerate(src,1) if pattern in x]; total=len(hits)
   if len(hits)>50:raise EvidenceError('fetch_limit_exceeded')
+  truncated=False
   chosen=sorted({n for i in hits for n in range(max(1,i-c),min(len(src),i+c)+1)})
  else:raise EvidenceError('fetch_mode_required')
  if len(chosen)>200:raise EvidenceError('fetch_limit_exceeded')
  out=[{'line':i,'text':src[i-1]} for i in chosen]
  if sum(len(x['text'].encode())+16 for x in out)>32768:raise EvidenceError('fetch_limit_exceeded')
- return {'ref_id':ref,'lines':out,'truncated':{'lines':False,'bytes':False}}
+ result={'ref_id':ref,'lines':out,'truncated':{'lines':truncated,'bytes':False}}
+ if errors: result['total_errors_in_source']=total
+ if pattern is not None: result['total_matches_in_source']=total
+ return result
