@@ -1,0 +1,44 @@
+{
+  "schema_version": "jev.usage-review/1",
+  "template_only": true,
+  "task_ref": null,
+  "timestamp": null,
+  "contract_id": "jev.claim-check/1",
+  "scenario": null,
+  "participation": null,
+  "skip_reason": null,
+  "receipt_id": null,
+  "pilot_run_ref": null,
+  "decision_question": null,
+  "criteria": [],
+  "options_considered": [],
+  "evidence_refs": [],
+  "unaided_action_before_check": null,
+  "jev_status": null,
+  "jev_answer": null,
+  "review": {
+    "kind": "agent-test",
+    "state": "unreviewed",
+    "expected_answer": null,
+    "supporting_source_refs": [],
+    "reason": null,
+    "error_class": null,
+    "review_effort_seconds": null
+  },
+  "recommendation_accepted": null,
+  "action_taken": null,
+  "outcome": {
+    "state": "unknown",
+    "observed": null,
+    "source_ref": null,
+    "observed_at": null
+  },
+  "utility": {
+    "action_changed": null,
+    "perceived_help": null,
+    "estimated_time_saved_seconds": null,
+    "comparison_basis": null,
+    "causal_benefit_established": false
+  },
+  "notes": null
+}

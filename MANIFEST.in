@@ -1,0 +1,19 @@
+include README.md SKILL.md pyproject.toml
+include docs/observability-replay.md docs/scenario-pilot.md
+include examples/usage-review.template.json
+recursive-include src *.py
+recursive-include tests *.py
+prune work
+prune results
+prune outputs
+prune probes
+prune data
+prune datasets
+prune training
+prune benchmarks
+prune fixtures
+prune conversations
+prune chats
+prune threads
+prune .agents
+global-exclude *.jfr *.jtl *.hprof *.log *.jsonl *.db *.sqlite* *.bak *.pyc
