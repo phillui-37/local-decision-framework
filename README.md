@@ -139,3 +139,7 @@ This public repository contains framework code, unit tests, usage documentation,
 ## Prototype limits
 
 This is an experimental decision aid. Model and scenario quality must be evaluated separately from protocol validity and replay reproducibility. Choice, routing, ranking, automatic runtime hooks, cross-model consensus, and compatibility with the hosted Jev protocol are not implemented. No general accuracy, calibrated-confidence, or autonomy claim is made.
+
+## Deterministic output evidence
+
+Register test/build/log output with `ldf source register <path>` (or `-` for stdin), inspect it using `ldf source summarize <ref_id>`, then retrieve numbered details with `ldf source fetch <ref_id> --lines N:M` or `--errors first=K|all`. Summaries name their detection scope and separate source-wide counts from displayed events; they never prove absence. Hash changes are reported as `stale_source`. See [docs/evidence-layer.md](docs/evidence-layer.md).

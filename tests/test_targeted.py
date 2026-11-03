@@ -189,4 +189,21 @@ class Targeted(unittest.TestCase):
    env=dict(os.environ,PYTHONPATH='src',JEV_BASE_URL=self.url,JEV_MODEL='configured',JEV_DATA_DIR=str(pathlib.Path(d,'data'))); Fake.calls=0
    r=subprocess.run([sys.executable,'-m','jev.cli','regression',str(manifest)],text=True,capture_output=True,env=env,check=True)
    self.assertEqual(json.loads(r.stdout)['error_code'],'invalid_manifest'); self.assertEqual(Fake.calls,0)
+ def test_mcp_evidence_tools_and_stale_source(self):
+  from mcp import ClientSession, StdioServerParameters
+  from mcp.client.stdio import stdio_client
+  import asyncio
+  async def run():
+   with tempfile.TemporaryDirectory() as d:
+    output=pathlib.Path(d,'output.txt'); output.write_text('2 passed\n')
+    env=dict(os.environ,PYTHONPATH='src',JEV_DATA_DIR=str(pathlib.Path(d,'data')))
+    async with stdio_client(StdioServerParameters(command=sys.executable,args=['-m','jev.mcp_server'],env=env)) as (rd,wr):
+     async with ClientSession(rd,wr) as session:
+      await session.initialize(); tools=await session.list_tools(); self.assertEqual(len(tools.tools),3)
+      cli=subprocess.run([sys.executable,'-m','jev.cli','source','register',str(output)],capture_output=True,text=True,env=env,check=True); ref=json.loads(cli.stdout)['ref_id']
+      sm=await session.call_tool('jev_summarize_output',{'source_ref':ref}); self.assertEqual(json.loads(sm.content[0].text)['status'],'pass')
+      got=await session.call_tool('jev_fetch_evidence',{'source_ref':ref,'lines':'1:1'}); self.assertEqual(json.loads(got.content[0].text)['lines'][0]['line'],1)
+      output.write_text('changed\n'); stale=await session.call_tool('jev_summarize_output',{'source_ref':ref}); self.assertEqual(json.loads(stale.content[0].text)['error_code'],'stale_source')
+  asyncio.run(run())
+
 if __name__=='__main__': unittest.main()

@@ -1,6 +1,7 @@
 import argparse, json, os, sys, uuid
 from datetime import datetime, timezone
 from .core import judge, replay, Rejected, _paths, _append, _rows, _timeout
+from . import evidence
 
 def _emit(x): print(json.dumps(x,ensure_ascii=False))
 def _issues(): return [r for r in _rows(_paths()[1]) if r.get('record_type')=='issue']
@@ -14,9 +15,14 @@ def main():
  add=fs.add_parser('add'); add.add_argument('request_id'); add.add_argument('expected',choices=('supported','contradicted','insufficient_evidence')); add.add_argument('--kind',choices=('agent-test','human'),default='agent-test'); add.add_argument('--observed-verdict',choices=('supported','contradicted','insufficient_evidence')); add.add_argument('--reason',default='')
  issue=sub.add_parser('issue'); ix=issue.add_subparsers(dest='issue_command'); ix.add_parser('list'); ish=ix.add_parser('show'); ish.add_argument('issue_id'); upd=ix.add_parser('update'); upd.add_argument('issue_id'); upd.add_argument('status',choices=('confirmed','fixed','regression_tested','open')); upd.add_argument('--kind',choices=('agent-test','human'),default='agent-test'); upd.add_argument('--reason',default=''); upd.add_argument('--ref'); upd.add_argument('--replay-receipt')
  rp=sub.add_parser('replay'); rp.add_argument('request_id'); rp.add_argument('--expected',choices=('supported','contradicted','insufficient_evidence')); rp.add_argument('--mode',choices=('original','current'),default='original')
+ source=sub.add_parser('source'); ss=source.add_subparsers(dest='source_command'); sr=ss.add_parser('register'); sr.add_argument('path'); su=ss.add_parser('summarize'); su.add_argument('ref_id'); sf=ss.add_parser('fetch'); sf.add_argument('ref_id'); sf.add_argument('--lines'); sf.add_argument('--errors'); sf.add_argument('--pattern'); sf.add_argument('--context',type=int,default=2)
  regression=sub.add_parser('regression'); regression.add_argument('manifest'); regression.add_argument('--capture',action='store_true'); regression.add_argument('--endpoint'); regression.add_argument('--model'); regression.add_argument('--mode',choices=('json_schema','json_object','plain'))
  a=p.parse_args()
  try:
+  if a.command=='source':
+   if a.source_command=='register': _emit(evidence.register(a.path)); return
+   if a.source_command=='summarize': _emit(evidence.summarize(a.ref_id)); return
+   _emit(evidence.fetch(a.ref_id,a.lines,a.errors,a.pattern,a.context)); return
   if a.command=='doctor':
    missing=[x for x in ('JEV_BASE_URL','JEV_MODEL') if not os.getenv(x)]
    if missing or not a.probe: _emit({'status':'unavailable' if missing else 'configured','missing':missing,'probed':False}); return
@@ -111,6 +117,7 @@ def main():
    _emit({'status':'complete' if complete else 'incomplete','manifest_hash':__import__('hashlib').sha256(raw).hexdigest(),'planned':len(cases),'attempted':len(results),'remaining':len(cases)-len(results),'results':results}); return
   p.print_help()
  except Rejected as e: _emit({'status':'rejected','error_code':e.code,'error':str(e)})
+ except evidence.EvidenceError as e: _emit({'status':'error','error_code':e.code,**e.details})
  except (json.JSONDecodeError,UnicodeDecodeError): _emit({'status':'rejected','error_code':'invalid_json'})
  except OSError: _emit({'status':'unavailable','error_code':'persistence_failed'})
 if __name__=='__main__': main()
