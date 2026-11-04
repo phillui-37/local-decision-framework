@@ -93,6 +93,28 @@ class Targeted(unittest.TestCase):
       await session.initialize(); response=await session.call_tool('jev_check_claim',packet); return json.loads(response.content[0].text)
    mcp_result=asyncio.run(call())
    self.assertEqual((cli_result['status'],cli_result['verdict'],cli_result['evidence_ids']),(mcp_result['status'],mcp_result['verdict'],mcp_result['evidence_ids']))
+ def test_client_label_param_and_env_fallback_on_receipt(self):
+  from mcp import ClientSession, StdioServerParameters
+  from mcp.client.stdio import stdio_client
+  import asyncio
+  async def run():
+   with tempfile.TemporaryDirectory() as d:
+    env=dict(os.environ, PYTHONPATH='src',JEV_DATA_DIR=d,JEV_BASE_URL=self.url,JEV_MODEL='configured',JEV_CLIENT_NAME='alma')
+    params=StdioServerParameters(command=sys.executable,args=['-m','jev.mcp_server'],env=env)
+    async with stdio_client(params) as (read,write):
+     async with ClientSession(read,write) as session:
+      await session.initialize()
+      Fake.mode='ok'
+      payload=json.loads((await session.call_tool('jev_check_claim',{'claim':'fact true','evidence':[{'id':'e1','text':'fact true'}],'client':'dsh'})).content[0].text)
+      self.assertEqual(payload['status'],'judged')
+      rows=[json.loads(x) for x in pathlib.Path(d,'receipts.jsonl').read_text().splitlines() if x]
+      self.assertEqual(rows[-1]['client'],'dsh')
+      payload=json.loads((await session.call_tool('jev_check_claim',{'claim':'fact true','evidence':[{'id':'e1','text':'fact true'}]})).content[0].text)
+      rows=[json.loads(x) for x in pathlib.Path(d,'receipts.jsonl').read_text().splitlines() if x]
+      self.assertEqual(rows[-1]['client'],'alma')
+      bad=json.loads((await session.call_tool('jev_check_claim',{'claim':'x','evidence':[],'client':'has space'})).content[0].text)
+      self.assertEqual((bad['status'],bad['error_code']),('rejected','invalid_client'))
+  asyncio.run(run())
  def test_mcp_caller_request_id_persisted_to_receipt(self):
   from mcp import ClientSession, StdioServerParameters
   from mcp.client.stdio import stdio_client

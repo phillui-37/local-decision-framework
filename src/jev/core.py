@@ -45,13 +45,15 @@ def _rows(path):
    except (json.JSONDecodeError,UnicodeDecodeError): continue
  return rows
 def validate(p):
- if not isinstance(p,dict) or set(p)-{'claim','evidence','flow','request_id'}: raise Rejected('invalid_packet','expected claim, evidence, optional flow/request_id')
+ if not isinstance(p,dict) or set(p)-{'claim','evidence','flow','request_id','client'}: raise Rejected('invalid_packet','expected claim, evidence, optional flow/request_id/client')
  c,ev=p.get('claim'),p.get('evidence')
  if not isinstance(c,str) or not c.strip() or len(c)>MAX_CLAIM: raise Rejected('invalid_claim','claim must be nonempty and within limit')
  if not isinstance(ev,list) or len(ev)>MAX_BLOCKS: raise Rejected('invalid_evidence','evidence must be a bounded array')
  rid=p.get('request_id')
  if rid is not None and (not isinstance(rid,str) or not rid.strip() or len(rid)>128): raise Rejected('invalid_request_id','request_id must be nonblank text within limit')
  if p.get('flow','direct') not in ('direct','evidence-first'): raise Rejected('invalid_flow','unknown flow')
+ cl=p.get('client')
+ if cl is not None and (not isinstance(cl,str) or not cl.strip() or len(cl)>32 or any(ch.isspace() for ch in cl)): raise Rejected('invalid_client','client must be a short nonblank label without whitespace')
  ids=set(); total=len(c)
  for b in ev:
   if not isinstance(b,dict) or set(b)-{'id','text','scope','source'} or not isinstance(b.get('id'),str) or not b['id'].strip() or len(b['id'])>128 or b['id'] in ids: raise Rejected('invalid_evidence_block','invalid or duplicate evidence id/block')
@@ -83,7 +85,7 @@ def _timeout(v):
  return x if 1<=x<=300 else None
 def _capture_enabled(explicit): return bool(explicit or os.getenv('JEV_CAPTURE','').lower() in ('1','true','yes'))
 def judge(packet,config=None,*,capture=False,capture_response=None,parent_request_id=None):
- p=validate(packet); cfg=config or {}; url=cfg.get('url') or os.getenv('JEV_BASE_URL'); model=cfg.get('model') or os.getenv('JEV_MODEL'); key=cfg.get('key') or os.getenv('JEV_API_KEY'); rid=uuid.uuid4().hex; flow=p.get('flow','direct')
+ p=validate(packet); client=p.get('client') or (os.getenv('JEV_CLIENT_NAME') or None); cfg=config or {}; url=cfg.get('url') or os.getenv('JEV_BASE_URL'); model=cfg.get('model') or os.getenv('JEV_MODEL'); key=cfg.get('key') or os.getenv('JEV_API_KEY'); rid=uuid.uuid4().hex; flow=p.get('flow','direct')
  timeout=_timeout(cfg.get('timeout',os.getenv('JEV_TIMEOUT','30')))
  try: limit=int(cfg.get('max_tokens',os.getenv('JEV_MAX_OUTPUT_TOKENS','1200'))); assert 1<=limit<=8192
  except (ValueError,TypeError,AssertionError): limit=None
@@ -136,7 +138,7 @@ def judge(packet,config=None,*,capture=False,capture_response=None,parent_reques
    with os.fdopen(fd,'w') as f: json.dump(cap,f,ensure_ascii=False); f.write('\n'); f.flush(); os.fsync(f.fileno())
    capture_path=str(path)
   except OSError: capture_error='capture_storage_failed'
- receipt={'receipt_schema':RECEIPT_SCHEMA,'request_id':rid,'parent_request_id':parent_request_id,'timestamp':datetime.now(timezone.utc).isoformat(),'package_version':'0.1.0','git_revision':_git_revision(),'prompt_id':PROMPT_ID,'prompt_version':PROMPT_VERSION,'prompt_hash':_json_hash(prompt),'output_schema_id':OUTPUT_SCHEMA_ID,'output_schema_version':OUTPUT_SCHEMA_VERSION,'output_schema_hash':_schema_hash(),'wire_schema_hash':_json_hash(_wire_schema(p)) if request_body else None,'source_fingerprint':_source_fingerprint(),'flow':flow,'caller_request_id':p.get('request_id'),'timeout':timeout,'max_output_tokens':limit,'reasoning_effort':effort,'configured_model':model,'actual_model':actual,'settings':{'temperature':0,'max_output_tokens':limit,'timeout':timeout,'reasoning_effort':effort,'output_mode':mode},'config_fingerprint':fingerprint,'input_hash':_json_hash(p),'evidence_hash':_json_hash(p['evidence']),'duration_ms':duration,'http_status':http_status,'finish_reason':finish,'token_usage':usage,'parse_stage':stage,'failure_code':code,'diagnostic_hash':_json_hash({'http_status':http_status,'finish_reason':finish,'stage':stage,'failure_code':code,'usage':usage}),'status':status,**({'verdict':local['verdict']} if status=='judged' else {})}
+ receipt={'receipt_schema':RECEIPT_SCHEMA,'request_id':rid,'parent_request_id':parent_request_id,'timestamp':datetime.now(timezone.utc).isoformat(),'package_version':'0.1.0','git_revision':_git_revision(),'prompt_id':PROMPT_ID,'prompt_version':PROMPT_VERSION,'prompt_hash':_json_hash(prompt),'output_schema_id':OUTPUT_SCHEMA_ID,'output_schema_version':OUTPUT_SCHEMA_VERSION,'output_schema_hash':_schema_hash(),'wire_schema_hash':_json_hash(_wire_schema(p)) if request_body else None,'source_fingerprint':_source_fingerprint(),'flow':flow,'caller_request_id':p.get('request_id'),'client':client,'timeout':timeout,'max_output_tokens':limit,'reasoning_effort':effort,'configured_model':model,'actual_model':actual,'settings':{'temperature':0,'max_output_tokens':limit,'timeout':timeout,'reasoning_effort':effort,'output_mode':mode},'config_fingerprint':fingerprint,'input_hash':_json_hash(p),'evidence_hash':_json_hash(p['evidence']),'duration_ms':duration,'http_status':http_status,'finish_reason':finish,'token_usage':usage,'parse_stage':stage,'failure_code':code,'diagnostic_hash':_json_hash({'http_status':http_status,'finish_reason':finish,'stage':stage,'failure_code':code,'usage':usage}),'status':status,**({'verdict':local['verdict']} if status=='judged' else {})}
  if capture_path: receipt.update(capture_path=capture_path,capture_hash=capture_hash)
  if capture_error: receipt.update(capture_error=capture_error)
  try: _append(_paths()[0],receipt); persisted=True
