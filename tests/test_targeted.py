@@ -93,6 +93,27 @@ class Targeted(unittest.TestCase):
       await session.initialize(); response=await session.call_tool('jev_check_claim',packet); return json.loads(response.content[0].text)
    mcp_result=asyncio.run(call())
    self.assertEqual((cli_result['status'],cli_result['verdict'],cli_result['evidence_ids']),(mcp_result['status'],mcp_result['verdict'],mcp_result['evidence_ids']))
+ def test_mcp_caller_request_id_persisted_to_receipt(self):
+  from mcp import ClientSession, StdioServerParameters
+  from mcp.client.stdio import stdio_client
+  import asyncio
+  async def run():
+   with tempfile.TemporaryDirectory() as d:
+    env=dict(os.environ, PYTHONPATH='src',JEV_DATA_DIR=d,JEV_BASE_URL=self.url,JEV_MODEL='configured')
+    params=StdioServerParameters(command=sys.executable,args=['-m','jev.mcp_server'],env=env)
+    async with stdio_client(params) as (read,write):
+     async with ClientSession(read,write) as session:
+      await session.initialize()
+      Fake.mode='ok'
+      payload=json.loads((await session.call_tool('jev_check_claim',{'claim':'fact true','evidence':[{'id':'e1','text':'fact true'}],'caller_request_id':'alma://thread/mw1g49a4abo51ms19c'})).content[0].text)
+      self.assertEqual(payload['status'],'judged')
+      rows=[json.loads(x) for x in pathlib.Path(d,'receipts.jsonl').read_text().splitlines() if x]
+      self.assertEqual(rows[-1]['caller_request_id'],'alma://thread/mw1g49a4abo51ms19c')
+      none=json.loads((await session.call_tool('jev_check_claim',{'claim':'fact true','evidence':[{'id':'e1','text':'fact true'}]})).content[0].text)
+      self.assertEqual(none['status'],'judged')
+      rows=[json.loads(x) for x in pathlib.Path(d,'receipts.jsonl').read_text().splitlines() if x]
+      self.assertIsNone(rows[-1]['caller_request_id'])
+  asyncio.run(run())
  def test_feedback_uses_receipt_and_rejects_false_observation(self):
   with tempfile.TemporaryDirectory() as d:
    env=dict(os.environ,PYTHONPATH='src',JEV_DATA_DIR=d)

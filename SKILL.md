@@ -5,7 +5,7 @@ description: Prefer a bounded evidence check for uncertain code facts, debugging
 
 # Local Decision Framework: useful checks across coding and BAU
 
-Use `jev_check_claim` for one factual claim against short evidence already read. Discover the client-qualified MCP name; it may differ across hosts. Call when a supported, contradicted, or unresolved answer could change the next action. Do not force a call each turn, repeat unchanged checks, or use it for arithmetic or facts already settled by direct verification.
+Use `jev_check_claim` for one factual claim against short evidence already read. Discover the client-qualified MCP name; it may differ across hosts. Call when a supported, contradicted, or unresolved answer could change the next action. Do not force a call each turn, repeat unchanged checks, or use it for arithmetic or facts already settled by direct verification. Pass `caller_request_id` with the originating chat/thread ID (e.g. `alma://thread/<id>`) so each receipt traces back to its source conversation for later verification.
 
 ## Recipes
 

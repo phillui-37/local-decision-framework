@@ -11,9 +11,9 @@ class Evidence(BaseModel):
  source: str | None = Field(default=None, description='Optional provenance locator label (repo:, sheet:, email:) or safe HTTP(S) URL. Treated as a label; never fetched or dereferenced.')
 mcp=FastMCP('jev')
 @mcp.tool()
-def jev_check_claim(claim:str=Field(description='Claim to assess using only the supplied evidence.'), evidence:list[Evidence]=Field(description='Up to 12 evidence blocks. Empty evidence yields insufficient evidence.'), flow:Literal['direct','evidence-first']='direct', capture:bool=False)->dict:
- """Check one uncertain factual claim against supplied evidence. Prefer for code/diff facts, debugging observations, requirement/report consistency, BAU status, or individual checklist items when the verdict could change the next action. Skip obvious facts, arithmetic, and checks already settled directly. Returns a cited judgement or abstains; does not prove causality, complete coverage, readiness, authority, or the best option."""
- try:return judge({'claim':claim,'evidence':[x.model_dump(exclude_none=True) for x in evidence],'flow':flow},capture=capture)
+def jev_check_claim(claim:str=Field(description='Claim to assess using only the supplied evidence.'), evidence:list[Evidence]=Field(description='Up to 12 evidence blocks. Empty evidence yields insufficient evidence.'), flow:Literal['direct','evidence-first']='direct', capture:bool=False, caller_request_id:str|None=None)->dict:
+ """Check one uncertain factual claim against supplied evidence. Prefer for code/diff facts, debugging observations, requirement/report consistency, BAU status, or individual checklist items when the verdict could change the next action. Skip obvious facts, arithmetic, and checks already settled directly. Returns a cited judgement or abstains; does not prove causality, complete coverage, readiness, authority, or the best option. Optionally pass caller_request_id (e.g. the originating chat/thread ID) so receipts can be traced back to their source conversation for verification."""
+ try:return judge({'claim':claim,'evidence':[x.model_dump(exclude_none=True) for x in evidence],'flow':flow,'request_id':caller_request_id},capture=capture)
  except Rejected as e:return {'status':'rejected','error_code':e.code,'error':str(e)}
 @mcp.tool()
 def jev_summarize_output(source_ref:str)->dict:
