@@ -21,7 +21,7 @@ def _git_dirty():
  try:
   import subprocess
   root=pathlib.Path(__file__).resolve().parents[2]
-  return bool(subprocess.check_output(['git','-C',str(root),'status','--porcelain','--','src/jev']).strip())
+  return bool(subprocess.check_output(['git','-C',str(root),'status','--porcelain','--','src/jev'],stdin=subprocess.DEVNULL).strip())
  except Exception: return None
 def _git_revision():
  try:
