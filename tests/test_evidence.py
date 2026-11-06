@@ -41,6 +41,7 @@ class EvidenceTests(unittest.TestCase):
   r=self.source('3 passed, 1 failed, 2 skipped\n')
   self.assertEqual(evidence.summarize(r['ref_id'])['status'],'fail')
   with self.assertRaises(evidence.EvidenceError): evidence.fetch(r['ref_id'],lines='1:201')
+ @unittest.skipUnless(os.name=='posix','POSIX mode bits do not describe Windows ACLs')
  def test_permissions(self):
   r=self.source('ok'); self.assertEqual(os.stat(pathlib.Path(self.tmp.name)/'sources.jsonl').st_mode & 0o777,0o600)
   self.assertEqual(os.stat(self.tmp.name).st_mode & 0o777,0o700)

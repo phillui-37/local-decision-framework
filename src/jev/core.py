@@ -30,7 +30,7 @@ def _git_revision():
   return head
  except OSError: return None
 def _paths():
- base=pathlib.Path(os.getenv('JEV_DATA_DIR',pathlib.Path.home()/'.local/share/jev'))
+ base=pathlib.Path(os.environ['JEV_DATA_DIR']) if 'JEV_DATA_DIR' in os.environ else pathlib.Path.home()/'.local/share/jev'
  return pathlib.Path(os.getenv('JEV_RECEIPTS_FILE',base/'receipts.jsonl')),pathlib.Path(os.getenv('JEV_FEEDBACK_FILE',base/'feedback.jsonl')),pathlib.Path(os.getenv('JEV_CAPTURE_DIR',base/'captures'))
 def _append(path,row):
  path.parent.mkdir(parents=True,mode=0o700,exist_ok=True); os.chmod(path.parent,0o700); fd=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_APPEND,0o600)

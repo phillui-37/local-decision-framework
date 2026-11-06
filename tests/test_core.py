@@ -27,6 +27,12 @@ class CoreTests(unittest.TestCase):
    self.assertNotIn('SECRET',open(os.path.join(d,'feedback.jsonl')).read())
    bad=subprocess.run([sys.executable,'-m','jev.cli','feedback','add','missing','supported'],env=env,text=True,capture_output=True)
    self.assertEqual(json.loads(bad.stdout)['error_code'],'unknown_request_id')
+ def test_explicit_data_dir_does_not_require_home_directory(self):
+  with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'JEV_DATA_DIR':d},clear=True), patch('pathlib.Path.home',side_effect=RuntimeError('home unavailable')):
+   result=judge({'claim':'No evidence is available','evidence':[]})
+   self.assertEqual(result['status'],'judged'); self.assertEqual(result['persistence'],'recorded')
+   with open(os.path.join(d,'receipts.jsonl')) as f:
+    self.assertEqual(json.loads(f.readline())['request_id'],result['request_id'])
  def test_cli_help_and_json(self):
   for args in (['--help'],['judge','--help']):
    r=subprocess.run([sys.executable,'-m','jev.cli',*args],text=True,capture_output=True); self.assertEqual(r.returncode,0)
@@ -41,7 +47,9 @@ class CoreTests(unittest.TestCase):
    plain=judge(packet); row=json.loads(open(os.path.join(d,'receipts.jsonl')).readline())
    self.assertNotIn('capture_path',row); self.assertNotIn('claim',row); self.assertNotIn('evidence',row)
    captured=judge(packet,capture=True); receipt=[json.loads(x) for x in open(os.path.join(d,'receipts.jsonl'))][-1]
-   cap_path=receipt['capture_path']; self.assertEqual(os.stat(cap_path).st_mode & 0o777,0o600)
+   cap_path=receipt['capture_path']
+   # POSIX mode bits do not describe Windows ACLs.
+   if os.name=='posix': self.assertEqual(os.stat(cap_path).st_mode & 0o777,0o600)
    self.assertEqual(load_capture(receipt)['packet_hash'],receipt['input_hash'])
    with open(cap_path) as f: cap=json.load(f)
    cap['packet']['claim']='tampered'
