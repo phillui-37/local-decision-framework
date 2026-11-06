@@ -7,6 +7,34 @@ description: Prefer a bounded evidence check for uncertain code facts, debugging
 
 Use `jev_check_claim` for one factual claim against short evidence already read. Discover the client-qualified MCP name; it may differ across hosts. Call when a supported, contradicted, or unresolved answer could change the next action. Do not force a call each turn, repeat unchanged checks, or use it for arithmetic or facts already settled by direct verification. Pass `caller_request_id` with the originating chat/thread ID (e.g. `alma://thread/<id>`) so each receipt traces back to its source conversation for later verification. Pass `client` with a short caller label (e.g. `alma`, `dsh`, `codex`) when the client is not already stamped via `JEV_CLIENT_NAME`, so receipts record which client made the request.
 
+## Runtime prerequisites — check before use
+
+This skill is instructions, not the JEV runtime. Use the owner's `local-decision-framework` repository ([source](https://github.com/phillui-37/local-decision-framework)), not an unrelated community package named `jev`. Require Python **3.10+** and the project's dependencies from `pyproject.toml` (`mcp>=1.30,<2` in v0.2.2).
+
+First discover an available JEV MCP tool or an installed `ldf`/`jev` CLI. Do not reinstall a working runtime. If neither is available, locate the source checkout and verify Python. Obtain the user's confirmation before installing Python or project dependencies. Run the following from that checkout; create `.venv` only if no suitable environment exists. Never copy a Mac `.venv` to Windows.
+
+Windows (PowerShell):
+
+```powershell
+py -3 --version
+py -3 -m venv .venv
+.\.venv\Scripts\python.exe -m pip install -e .
+.\.venv\Scripts\ldf.exe --help
+```
+
+macOS / Linux:
+
+```sh
+python3 --version
+python3 -m venv .venv
+.venv/bin/python -m pip install -e .
+.venv/bin/ldf --help
+```
+
+Use the verified absolute CLI path for the fallback below. For MCP, register the absolute path to `.venv/Scripts/ldf-mcp.exe` on Windows or `.venv/bin/ldf-mcp` on macOS/Linux, with that device's intended JEV gateway/model settings. Do not reuse a Mac hostname-gated MCP entry on Windows. Reconnect the client and confirm `jev_check_claim` is exposed; `--help` alone verifies CLI startup, not MCP registration or model connectivity.
+
+If installation, registration, or a check fails, report the exact missing prerequisite and stop the JEV-dependent step. Continue independent work where allowed; never treat a missing runtime as a successful check or claim it was never installed based only on a missing path.
+
 ## Recipes
 
 | Scenario | Bounded claim to check | Keep the scope honest |
