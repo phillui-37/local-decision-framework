@@ -186,3 +186,44 @@ def replay(request_id,expected=None,mode='original'):
  result=judge(packet,parent_request_id=request_id)
  result.update(mode='current',expected=expected,match=(result.get('verdict')==expected if expected is not None and result['status']=='judged' else False),source_version_changed=original.get('source_fingerprint',{}).get('hash')!=_source_fingerprint().get('hash'))
  return result
+
+# --- Batch claims (detection battery) ---
+MAX_CLAIMS=8
+BATTERY_SCHEMA_VERSION='1'
+def validate_battery(b):
+ if not isinstance(b,dict) or set(b)-{'claims','evidence','flow','request_id','client'}: raise Rejected('invalid_packet','expected claims, evidence, optional flow/request_id/client')
+ claims=b.get('claims'); ev=b.get('evidence')
+ if not isinstance(claims,list) or not claims or len(claims)>MAX_CLAIMS: raise Rejected('invalid_claims',f'claims must be a nonempty array of at most {MAX_CLAIMS}')
+ seen=set()
+ for i,c in enumerate(claims):
+  if not isinstance(c,dict) or set(c)-{'id','claim'} or not isinstance(c.get('id'),str) or not c['id'].strip() or len(c['id'])>128 or c['id'] in seen: raise Rejected('invalid_claim_id','claim ids must be unique nonblank strings within limit')
+  seen.add(c['id'])
+  if not isinstance(c.get('claim'),str) or not c['claim'].strip() or len(c['claim'])>MAX_CLAIM: raise Rejected('invalid_claim','claim must be nonempty and within limit')
+ if not isinstance(ev,list) or len(ev)>MAX_BLOCKS: raise Rejected('invalid_evidence','evidence must be a bounded array')
+ # reuse single-claim validation on a probe packet for evidence/flow/client shape
+ probe={'claim':claims[0]['claim'],'evidence':ev,'flow':b.get('flow','direct'),'request_id':b.get('request_id'),'client':b.get('client')}
+ validate(probe)
+ if len(json.dumps(b,ensure_ascii=False).encode())>MAX_PACKET_BYTES*2: raise Rejected('packet_bytes_limit','battery exceeds size limit')
+ return b
+def judge_claims(b,config=None,*,capture=False):
+ b=validate_battery(b); client=b.get('client') or (_env('CLIENT_NAME') or None); cfg=config or {}
+ # Cache probe must hash the exact packet judge() receives and hashes, key-for-key.
+ flow=b.get('flow','direct'); results=[]; misses=[]; bh=_json_hash(b)
+ def probe_packet(c): return {'claim':c['claim'],'evidence':b['evidence'],'flow':flow,'request_id':b.get('request_id'),'client':client}
+ for c in b['claims']:
+  hit=_battery_cache_lookup(_json_hash(probe_packet(c)))
+  if hit is not None: results.append({'claim_id':c['id'],**hit,'cached':True}); continue
+  r=judge({'claim':c['claim'],'evidence':b['evidence'],'flow':b.get('flow','direct'),'request_id':b.get('request_id'),'client':client},cfg,capture=capture)
+  entry={'claim_id':c['id']}
+  entry.update({k:r[k] for k in ('status','request_id','duration_ms') if k in r})
+  if r.get('verdict') is not None: entry['verdict']=r['verdict']; entry['evidence_ids']=r.get('evidence_ids',[]); entry['rationale']=r.get('rationale','')
+  if r.get('error_code'): entry['error_code']=r['error_code']
+  entry['cached']=False
+  results.append(entry); misses.append(c['id'])
+ _append(_paths()[0],{'receipt_schema':RECEIPT_SCHEMA,'request_id':uuid.uuid4().hex,'timestamp':datetime.now(timezone.utc).isoformat(),'kind':'battery','battery_hash':bh,'claims':len(b['claims']),'cached':sum(1 for x in results if x['cached']),'provider_calls':len(misses),'status':'battery','duration_ms':sum(x.get('duration_ms',0) for x in results if not x['cached']),'client':client})
+ return {'status':'battery','battery_hash':bh,'cached':sum(1 for x in results if x['cached']),'results':results}
+def _battery_cache_lookup(h):
+ for r in reversed(_rows(_paths()[0])):
+  if r.get('input_hash')==h and r.get('status')=='judged' and r.get('verdict'):
+   return {'verdict':r['verdict'],'evidence_ids':r.get('evidence_ids') or [],'rationale':r.get('rationale',''),'request_id':r.get('request_id'),'duration_ms':0}
+ return None
