@@ -4,7 +4,7 @@ Local Decision Framework keeps execution metadata by default. This supports trac
 
 ## Storage and privacy
 
-`JEV_DATA_DIR` selects a private local data directory, defaulting to `~/.local/share/jev` for compatibility. `JEV_RECEIPTS_FILE`, `JEV_FEEDBACK_FILE`, and `JEV_CAPTURE_DIR` can override individual paths. Do not put runtime storage inside version-controlled source.
+`LDF_DATA_DIR` selects a private local data directory, defaulting to the existing local data directory. `LDF_RECEIPTS_FILE`, `LDF_FEEDBACK_FILE`, and `LDF_CAPTURE_DIR` can override individual paths. Do not put runtime storage inside version-controlled source.
 
 Receipts record status/verdict, timing, safe HTTP/validation diagnostics, configured/returned model IDs, settings, prompt/schema identities and source/input hashes. Unknown usage is null. Provider credentials and error bodies are not logged as diagnostics.
 
@@ -12,10 +12,10 @@ Input capture and response capture are separate opt-ins:
 
 ```bash
 ldf judge --capture < packet.json
-JEV_CAPTURE_RESPONSE=1 ldf judge --capture < packet.json
+LDF_CAPTURE_RESPONSE=1 ldf judge --capture < packet.json
 ```
 
-`JEV_CAPTURE=1` enables input capture for a deliberately configured debugging session. Captured inputs contain the supplied evidence, so enable this only in a trusted local data directory. Raw provider responses are bounded and marked when truncated. Capture files are created with private permissions. Source labels are not fetched.
+`LDF_CAPTURE=1` enables input capture for a deliberately configured debugging session. Captured inputs contain the supplied evidence, so enable this only in a trusted local data directory. Raw provider responses are bounded and marked when truncated. Capture files are created with private permissions. Source labels are not fetched.
 
 ## Inspect and replay
 
@@ -56,6 +56,6 @@ Keep every experiment's manifest, model/settings, versions and result directory 
 
 ## Output modes
 
-Set `JEV_OUTPUT_MODE` to `json_schema`, `json_object`, or `plain`. There is no silent retry with another format/provider. A strict provider-facing schema constrains offered citation IDs and uses a portable decoder subset; local validation also rejects duplicate/unknown citations and decisive results without evidence. Some providers accept only a subset of JSON Schema.
+Set `LDF_OUTPUT_MODE` to `json_schema`, `json_object`, or `plain`. There is no silent retry with another format/provider. A strict provider-facing schema constrains offered citation IDs and uses a portable decoder subset; local validation also rejects duplicate/unknown citations and decisive results without evidence. Some providers accept only a subset of JSON Schema.
 
 Logging and replay establish traceability and reproducibility of recorded processing. Answer quality and decision usefulness still need review against appropriate task evidence.

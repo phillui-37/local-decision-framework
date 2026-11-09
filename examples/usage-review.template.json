@@ -1,9 +1,9 @@
 {
-  "schema_version": "jev.usage-review/1",
+  "schema_version": "ldf.usage-review/1",
   "template_only": true,
   "task_ref": null,
   "timestamp": null,
-  "contract_id": "jev.claim-check/1",
+  "contract_id": "ldf.claim-check/1",
   "scenario": null,
   "participation": null,
   "skip_reason": null,
@@ -14,8 +14,8 @@
   "options_considered": [],
   "evidence_refs": [],
   "unaided_action_before_check": null,
-  "jev_status": null,
-  "jev_answer": null,
+  "ldf_status": null,
+  "ldf_answer": null,
   "review": {
     "kind": "agent-test",
     "state": "unreviewed",

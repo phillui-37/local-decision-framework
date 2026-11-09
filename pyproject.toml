@@ -9,9 +9,10 @@ version="0.2.2"
 requires-python=">=3.10"
 dependencies=["mcp>=1.30,<2"]
 [project.scripts]
-ldf="jev.cli:main"
-ldf-mcp="jev.mcp_server:main"
-jev="jev.cli:main"
-jev-mcp="jev.mcp_server:main"
+ldf="ldf.cli:main"
+ldf-mcp="ldf.mcp_server:main"
+# Legacy aliases for existing integrations; identical entry points.
+jev="ldf.cli:main"
+jev-mcp="ldf.mcp_server:main"
 [tool.setuptools.packages.find]
 where=["src"]
