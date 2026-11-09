@@ -1,6 +1,6 @@
 import argparse, json, os, sys, uuid
 from datetime import datetime, timezone
-from .core import judge, replay, Rejected, _paths, _append, _rows, _timeout, _env
+from .core import judge, judge_claims, replay, Rejected, _paths, _append, _rows, _timeout, _env
 from . import evidence
 
 def _emit(x): print(json.dumps(x,ensure_ascii=False))
@@ -11,6 +11,7 @@ def main():
  doctor=sub.add_parser('doctor'); doctor.add_argument('--probe',action='store_true')
  receipts=sub.add_parser('receipts'); rs=receipts.add_subparsers(dest='receipts_command'); rs.add_parser('list'); sh=rs.add_parser('show'); sh.add_argument('request_id'); rex=rs.add_parser('export'); rex.add_argument('--format',choices=('json','jsonl'),default='json')
  judgep=sub.add_parser('judge'); judgep.add_argument('--capture',action='store_true',help='Capture normalized input and rendered request locally')
+ batp=sub.add_parser('judge-claims'); batp.add_argument('--capture',action='store_true',help='Capture normalized input and rendered request locally')
  fb=sub.add_parser('feedback'); fs=fb.add_subparsers(dest='feedback_command'); fs.add_parser('list'); ex=fs.add_parser('export'); ex.add_argument('--format',choices=('json','jsonl'),default='json')
  add=fs.add_parser('add'); add.add_argument('request_id'); add.add_argument('expected',choices=('supported','contradicted','insufficient_evidence')); add.add_argument('--kind',choices=('agent-test','human'),default='agent-test'); add.add_argument('--observed-verdict',choices=('supported','contradicted','insufficient_evidence')); add.add_argument('--reason',default='')
  issue=sub.add_parser('issue'); ix=issue.add_subparsers(dest='issue_command'); ix.add_parser('list'); ish=ix.add_parser('show'); ish.add_argument('issue_id'); upd=ix.add_parser('update'); upd.add_argument('issue_id'); upd.add_argument('status',choices=('confirmed','fixed','regression_tested','open')); upd.add_argument('--kind',choices=('agent-test','human'),default='agent-test'); upd.add_argument('--reason',default=''); upd.add_argument('--ref'); upd.add_argument('--replay-receipt')
@@ -41,6 +42,10 @@ def main():
     _emit({'status':'configured' if ok else 'unavailable','missing':[],'probed':True,'error_code':None if ok else 'invalid_models_response'})
    except Exception: _emit({'status':'unavailable','missing':[],'probed':True,'error_code':'probe_failed'})
    return
+  if a.command=='judge-claims':
+   raw=sys.stdin.buffer.read(100001)
+   if len(raw)>100000: raise Rejected('packet_bytes_limit','serialized battery exceeds byte limit')
+   packet=json.loads(raw); result=judge_claims(packet,capture=getattr(a,'capture',False)); _emit(result); return
   if a.command in ('judge',None):
    raw=sys.stdin.buffer.read(50001)
    if len(raw)>50000: raise Rejected('packet_bytes_limit','serialized packet exceeds byte limit')

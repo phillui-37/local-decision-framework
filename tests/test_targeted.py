@@ -259,7 +259,7 @@ class Targeted(unittest.TestCase):
     env=dict(os.environ,PYTHONPATH='src',LDF_DATA_DIR=str(pathlib.Path(d,'data')))
     async with stdio_client(StdioServerParameters(command=sys.executable,args=['-m','ldf.mcp_server'],env=env)) as (rd,wr):
      async with ClientSession(rd,wr) as session:
-      await session.initialize(); tools=await session.list_tools(); self.assertEqual(len(tools.tools),3)
+      await session.initialize(); tools=await session.list_tools(); self.assertEqual(len(tools.tools),4)
       cli=subprocess.run([sys.executable,'-m','ldf.cli','source','register',str(output)],capture_output=True,text=True,env=env,check=True); ref=json.loads(cli.stdout)['ref_id']
       sm=await session.call_tool('ldf_summarize_output',{'source_ref':ref}); self.assertEqual(json.loads(sm.content[0].text)['status'],'pass')
       got=await session.call_tool('ldf_fetch_evidence',{'source_ref':ref,'lines':'1:1'}); self.assertEqual(json.loads(got.content[0].text)['lines'][0]['line'],1)
@@ -267,3 +267,58 @@ class Targeted(unittest.TestCase):
   asyncio.run(run())
 
 if __name__=='__main__': unittest.main()
+
+
+class Battery(unittest.TestCase):
+ @classmethod
+ def setUpClass(cls):
+  cls.server=HTTPServer(('127.0.0.1',0),Fake); cls.thread=threading.Thread(target=cls.server.serve_forever,daemon=True); cls.thread.start(); cls.url=f'http://127.0.0.1:{cls.server.server_port}/v1'
+ @classmethod
+ def tearDownClass(cls): cls.server.shutdown(); cls.thread.join()
+ def _battery(self,n=2):
+  return {'claims':[{'id':f'c{i}','claim':f'claim number {i}'} for i in range(n)],'evidence':[{'id':'e1','text':'fact is true'}],'flow':'direct'}
+ def test_battery_validates_shape(self):
+  from ldf.core import validate_battery, Rejected
+  with tempfile.TemporaryDirectory():
+   ok=self._battery(); self.assertEqual(validate_battery(ok),ok)
+   for bad in (
+    {'claims':[],'evidence':[]},                                        # empty claims
+    {'claims':[{'id':'a','claim':'x'},{'id':'a','claim':'y'}],'evidence':[{'id':'e1','text':'t'}]},  # dup id
+    {'claims':[{'id':'a'}],'evidence':[{'id':'e1','text':'t'}]},        # missing claim text
+    {'claims':[{'id':'a','claim':'x'} for _ in range(9)],'evidence':[{'id':'e1','text':'t'}]},  # >8
+   ):
+    with self.assertRaises(Rejected): validate_battery(bad)
+   # empty evidence is accepted and abstains per claim, matching single-claim semantics
+   accepted=validate_battery({'claims':[{'id':'a','claim':'x'}],'evidence':[]})
+   self.assertEqual(accepted['claims'][0]['id'],'a')
+ def test_battery_judges_each_claim_and_records_receipt(self):
+  from ldf.core import judge_claims
+  Fake.mode='ok'; Fake.calls=0
+  with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'LDF_DATA_DIR':d}):
+   r=judge_claims(self._battery(3),{'url':self.url,'model':'configured','timeout':2})
+   self.assertEqual(r['status'],'battery'); self.assertEqual(r['cached'],0)
+   self.assertEqual(len(r['results']),3); self.assertEqual(Fake.calls,3)
+   for i,x in enumerate(r['results']):
+    self.assertEqual(x['claim_id'],f'c{i}'); self.assertEqual(x['verdict'],'supported'); self.assertFalse(x['cached'])
+   rows=[json.loads(l) for l in pathlib.Path(d,'receipts.jsonl').read_text().splitlines()]
+   batt=[x for x in rows if x.get('kind')=='battery']
+   self.assertEqual(len(batt),1); self.assertEqual(batt[0]['claims'],3); self.assertEqual(batt[0]['provider_calls'],3)
+ def test_battery_cache_hits_skip_provider(self):
+  from ldf.core import judge_claims
+  Fake.mode='ok'
+  with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'LDF_DATA_DIR':d}):
+   first=judge_claims(self._battery(2),{'url':self.url,'model':'configured','timeout':2})
+   self.assertEqual(first['cached'],0)
+   Fake.calls=0
+   second=judge_claims(self._battery(2),{'url':self.url,'model':'configured','timeout':2})
+   self.assertEqual(second['cached'],2); self.assertEqual(Fake.calls,0)
+   self.assertEqual([x['verdict'] for x in second['results']],['supported']*2)
+   for x in second['results']: self.assertTrue(x['cached'])
+ def test_battery_failure_propagates_per_claim(self):
+  from ldf.core import judge_claims
+  Fake.mode='failure'
+  with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'LDF_DATA_DIR':d}):
+   r=judge_claims(self._battery(2),{'url':self.url,'model':'configured','timeout':2})
+   self.assertEqual(r['status'],'battery')
+   for x in r['results']:
+    self.assertEqual(x['status'],'unavailable'); self.assertNotIn('verdict',x)
