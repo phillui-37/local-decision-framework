@@ -50,6 +50,35 @@ class Targeted(unittest.TestCase):
     if mode=='ok': self.assertEqual(r['model'],'returned-model')
     self.assertNotIn('DO_NOT_LEAK',json.dumps(r))
    receipts=pathlib.Path(d,'receipts.jsonl').read_text(); self.assertNotIn('DO_NOT_LEAK',receipts)
+ def test_default_budgets_and_environment_override_precedence(self):
+  packet={'claim':'fact is true','evidence':[{'id':'e1','text':'fact is true'}]}
+  with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'LDF_DATA_DIR':d},clear=True):
+   Fake.mode='ok'; Fake.calls=0
+   result=judge(packet,{'url':self.url,'model':'configured'})
+   self.assertEqual(result['status'],'judged')
+   self.assertEqual(Fake.last_body['max_tokens'],2400)
+   receipt=json.loads(pathlib.Path(d,'receipts.jsonl').read_text())
+   self.assertEqual(receipt['timeout'],90)
+   self.assertEqual(receipt['max_output_tokens'],2400)
+  with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'LDF_DATA_DIR':d,'JEV_TIMEOUT':'45','JEV_MAX_OUTPUT_TOKENS':'1800'},clear=True):
+   judge(packet,{'url':self.url,'model':'configured'})
+   receipt=json.loads(pathlib.Path(d,'receipts.jsonl').read_text())
+   self.assertEqual(Fake.last_body['max_tokens'],1800)
+   self.assertEqual(receipt['timeout'],45)
+  with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'LDF_DATA_DIR':d,'JEV_TIMEOUT':'45','LDF_TIMEOUT':'60','JEV_MAX_OUTPUT_TOKENS':'1800','LDF_MAX_OUTPUT_TOKENS':'2000'},clear=True):
+   Fake.mode='ok'; Fake.calls=0
+   judge(packet,{'url':self.url,'model':'configured'})
+   receipt=json.loads(pathlib.Path(d,'receipts.jsonl').read_text())
+   self.assertEqual(Fake.last_body['max_tokens'],2000)
+   self.assertEqual(receipt['timeout'],60)
+ def test_doctor_probe_default_timeout_and_override(self):
+  from ldf import cli
+  for env,expected in [({'LDF_BASE_URL':self.url,'LDF_MODEL':'configured'},90),({'LDF_BASE_URL':self.url,'LDF_MODEL':'configured','LDF_TIMEOUT':'75'},75)]:
+   with patch.dict(os.environ,env,clear=True), patch('urllib.request.urlopen') as urlopen:
+    response=urlopen.return_value.__enter__.return_value
+    response.status=200; response.read.return_value=json.dumps({'data':[{'id':'configured'}]}).encode()
+    with patch('sys.argv',['ldf','doctor','--probe']): cli.main()
+    self.assertEqual(urlopen.call_args.kwargs['timeout'],expected)
  def test_observation_cap_and_short_rationale_are_sent_to_provider(self):
   packet={'claim':'fact is true','evidence':[{'id':'e1','text':'fact is true'}]}
   with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'JEV_DATA_DIR':d,'JEV_MAX_OUTPUT_TOKENS':'2400'}):

@@ -57,8 +57,8 @@ export LDF_API_KEY_FILE="$HOME/.config/your-runtime/api-key"
 | `LDF_BASE_URL`, `LDF_MODEL` | Required endpoint and model ID |
 | `LDF_API_KEY_FILE` or `LDF_API_KEY` | Optional provider authentication |
 | `LDF_OUTPUT_MODE` | `json_schema`, `json_object` (default), or `plain` |
-| `LDF_TIMEOUT` | Per-call timeout, 1–300 seconds; default 30 |
-| `LDF_MAX_OUTPUT_TOKENS` | Output budget, 1–8192; default 1200 |
+| `LDF_TIMEOUT` | Per-call timeout, 1–300 seconds; default 90 |
+| `LDF_MAX_OUTPUT_TOKENS` | Output budget, 1–8192; default 2400 |
 | `LDF_REASONING_EFFORT` | Optional provider-specific setting |
 | `LDF_DATA_DIR` | Private receipt/capture storage; default `~/.local/share/ldf` (falls back to a legacy `~/.local/share/jev` if present) |
 
