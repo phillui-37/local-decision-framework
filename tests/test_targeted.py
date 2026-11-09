@@ -50,6 +50,23 @@ class Targeted(unittest.TestCase):
     if mode=='ok': self.assertEqual(r['model'],'returned-model')
     self.assertNotIn('DO_NOT_LEAK',json.dumps(r))
    receipts=pathlib.Path(d,'receipts.jsonl').read_text(); self.assertNotIn('DO_NOT_LEAK',receipts)
+ def test_observation_cap_and_short_rationale_are_sent_to_provider(self):
+  packet={'claim':'fact is true','evidence':[{'id':'e1','text':'fact is true'}]}
+  with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'JEV_DATA_DIR':d,'JEV_MAX_OUTPUT_TOKENS':'2400'}):
+   Fake.mode='ok'; Fake.calls=0
+   result=judge(packet,{'url':self.url,'model':'configured','timeout':2})
+   self.assertEqual(result['status'],'judged'); self.assertEqual(Fake.calls,1)
+   self.assertEqual(Fake.last_body['max_tokens'],2400)
+   prompt=Fake.last_body['messages'][0]['content']
+   self.assertIn('preferably under 400 characters',prompt)
+   self.assertIn('never over 1200 characters',prompt)
+   row=json.loads(pathlib.Path(d,'receipts.jsonl').read_text())
+   self.assertEqual(row['max_output_tokens'],2400); self.assertEqual(row['prompt_version'],'3')
+ def test_rationale_boundary_and_truncated_json_remain_rejected(self):
+  def body(n): return json.dumps({'verdict':'supported','evidence_ids':['e1'],'rationale':'x'*n})
+  self.assertEqual(len(strict_result(body(1200),{'e1'},'stop')['rationale']),1200)
+  with self.assertRaisesRegex(ValueError,'rationale_too_long'): strict_result(body(1201),{'e1'},'stop')
+  with self.assertRaisesRegex(ValueError,'truncated_output'): strict_result(body(10),{'e1'},'length')
  def test_json_schema_mode_is_explicit_and_never_retried(self):
   packet={'claim':'fact is true','evidence':[{'id':'e1','text':'fact is true'}]}
   with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'JEV_DATA_DIR':d}):

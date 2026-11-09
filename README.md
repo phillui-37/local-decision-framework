@@ -64,6 +64,8 @@ export JEV_API_KEY_FILE="$HOME/.config/your-runtime/api-key"
 
 Use a mode supported by your backend. Schema-constrained output still passes local strict validation; JSON validity and valid citations do not establish judgement correctness.
 
+The completion-token budget and the 1200-character rationale limit are separate. Prompt v3 requests 1–3 short sentences, preferably under 400 characters and never over 1200. A larger completion budget does not relax local validation or make a truncated response usable. The Alma deployment is observing a per-server `JEV_MAX_OUTPUT_TOKENS=2400` override during normal use on 2026-11-06; the library default remains 1200.
+
 ## Check a claim
 
 ```bash
