@@ -22,7 +22,7 @@ Keep task/evidence/outcome records local and outside Git. Review false support, 
 
 ## Separate future contracts
 
-Choice and routing are experimental design directions, not implemented capabilities of `jev_check_claim`. They must not be disguised as factual verdicts merely to reuse current scores or feedback labels.
+Choice and routing are experimental design directions, not implemented capabilities of `ldf_check_claim`. They must not be disguised as factual verdicts merely to reuse current scores or feedback labels.
 
 A **choice** contract would take a task, explicit criterion, bounded evidence and offered options. It would return an offered option ID with citations, or abstain for ties/missing evidence. Selection would not execute or authorize the action.
 

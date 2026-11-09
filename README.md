@@ -34,33 +34,35 @@ uv venv .venv
 uv pip install --python .venv/bin/python -e .
 ```
 
-The package installs `ldf` and `ldf-mcp`. Existing `jev` / `jev-mcp` commands, the `jev` Python namespace, `JEV_*` settings, and the MCP name `jev_check_claim` remain available for client compatibility.
+The package installs `ldf` and `ldf-mcp`, exposes the MCP tool `ldf_check_claim`, and uses `LDF_*` settings with data under `~/.local/share/ldf`. For backward compatibility with existing integrations, the legacy `jev` / `jev-mcp` commands, the `jev` Python namespace, `JEV_*` environment variables (silently respected), and an existing `~/.local/share/jev` data directory continue to work. "Jev" in this repository refers only to this legacy naming and to the TypeSafe project credited above; this tool is unrelated to any hosted Jev service.
 
 ## Configure a model
 
 No endpoint or model is selected automatically. Set them explicitly:
 
 ```bash
-export JEV_BASE_URL=http://127.0.0.1:8000/v1
-export JEV_MODEL=your-local-model
-export JEV_OUTPUT_MODE=json_schema
+export LDF_BASE_URL=http://127.0.0.1:8000/v1
+export LDF_MODEL=your-local-model
+export LDF_OUTPUT_MODE=json_schema
 # Optional authentication; do not put credentials in source or MCP arguments.
-export JEV_API_KEY_FILE="$HOME/.config/your-runtime/api-key"
+export LDF_API_KEY_FILE="$HOME/.config/your-runtime/api-key"
 
 .venv/bin/ldf doctor --probe
 ```
 
-`JEV_BASE_URL` includes `/v1`. A remote endpoint is also supported when you choose it explicitly; evidence will then be sent to that provider. There is no automatic model, provider, or output-format fallback.
+`LDF_BASE_URL` includes `/v1`. A remote endpoint is also supported when you choose it explicitly; evidence will then be sent to that provider. There is no automatic model, provider, or output-format fallback.
 
 | Setting | Purpose |
 |---|---|
-| `JEV_BASE_URL`, `JEV_MODEL` | Required endpoint and model ID |
-| `JEV_API_KEY_FILE` or `JEV_API_KEY` | Optional provider authentication |
-| `JEV_OUTPUT_MODE` | `json_schema`, `json_object` (default), or `plain` |
-| `JEV_TIMEOUT` | Per-call timeout, 1–300 seconds; default 30 |
-| `JEV_MAX_OUTPUT_TOKENS` | Output budget, 1–8192; default 1200 |
-| `JEV_REASONING_EFFORT` | Optional provider-specific setting |
-| `JEV_DATA_DIR` | Private receipt/capture storage; default `~/.local/share/jev` |
+| `LDF_BASE_URL`, `LDF_MODEL` | Required endpoint and model ID |
+| `LDF_API_KEY_FILE` or `LDF_API_KEY` | Optional provider authentication |
+| `LDF_OUTPUT_MODE` | `json_schema`, `json_object` (default), or `plain` |
+| `LDF_TIMEOUT` | Per-call timeout, 1–300 seconds; default 30 |
+| `LDF_MAX_OUTPUT_TOKENS` | Output budget, 1–8192; default 1200 |
+| `LDF_REASONING_EFFORT` | Optional provider-specific setting |
+| `LDF_DATA_DIR` | Private receipt/capture storage; default `~/.local/share/ldf` (falls back to a legacy `~/.local/share/jev` if present) |
+
+Every `LDF_*` setting also accepts its legacy `JEV_*` spelling, so existing configurations keep working unchanged.
 
 Use a mode supported by your backend. Schema-constrained output still passes local strict validation; JSON validity and valid citations do not establish judgement correctness.
 
@@ -91,16 +93,16 @@ Register this stdio server in your client, replacing the paths and model setting
       "command": "/absolute/path/to/local-decision-framework/.venv/bin/ldf-mcp",
       "args": [],
       "env": {
-        "JEV_BASE_URL": "http://127.0.0.1:8000/v1",
-        "JEV_MODEL": "your-local-model",
-        "JEV_OUTPUT_MODE": "json_schema"
+        "LDF_BASE_URL": "http://127.0.0.1:8000/v1",
+        "LDF_MODEL": "your-local-model",
+        "LDF_OUTPUT_MODE": "json_schema"
       }
     }
   }
 }
 ```
 
-The server exposes one tool: `jev_check_claim`. Its client-qualified name may vary. For existing integrations, `jev-mcp` launches the same server.
+The server exposes three tools: `ldf_check_claim`, `ldf_summarize_output`, and `ldf_fetch_evidence`. Client-qualified names may vary. For existing integrations, the legacy `jev-mcp` command launches the same server.
 
 [SKILL.md](SKILL.md) teaches when to call it across coding and BAU tasks, how to prepare bounded evidence, and when to abstain. Install it through your agent's Skill mechanism and set its CLI fallback path for your machine. Invocation stays optional and advisory.
 
@@ -110,7 +112,7 @@ Receipts contain timing, versions, model/settings fingerprints, input hashes and
 
 ```bash
 # Explicitly capture this debugging request and its raw response locally.
-JEV_CAPTURE_RESPONSE=1 .venv/bin/ldf judge --capture < packet.json
+LDF_CAPTURE_RESPONSE=1 .venv/bin/ldf judge --capture < packet.json
 
 .venv/bin/ldf receipts show RECEIPT_ID
 .venv/bin/ldf replay RECEIPT_ID --mode original --expected contradicted
