@@ -17,6 +17,46 @@ LDF_CAPTURE_RESPONSE=1 ldf judge --capture < packet.json
 
 `LDF_CAPTURE=1` enables input capture for a deliberately configured debugging session. Captured inputs contain the supplied evidence, so enable this only in a trusted local data directory. Raw provider responses are bounded and marked when truncated. Capture files are created with private permissions. Source labels are not fetched.
 
+## Batch results and cache
+
+`ldf judge-claims` / `ldf_check_claims` accepts 1–8 claims and at most 12 shared
+evidence blocks. It checks uncached claims sequentially through the single-claim
+core. Invalid input rejects the batch before the loop; an operational failure
+returned for a claim is recorded in that claim's result and processing continues.
+The top-level `status=battery` does not assert that every claim was judged.
+
+The response contains `battery_hash`, a numeric `cached` count and ordered
+`results`. Each item has `claim_id`, `request_id`, `duration_ms` and `cached`.
+Uncached items carry their own `status`; judged ones also carry `verdict`,
+`evidence_ids` and `rationale`. Failed items can carry `error_code` without a
+verdict. Cached items currently omit `status` and reuse a prior receipt ID.
+The separate battery receipt records claim/cache counts and a `provider_calls`
+counter. That counter counts cache misses passed to the judge, not confirmed
+HTTP requests (a configuration failure may occur before HTTP).
+
+Cache matching hashes the normalized single-claim packet: claim text, shared
+evidence (including order and supplied fields), flow, caller request ID and
+resolved client. The batch's claim ID is not part of that per-claim key. Reuse
+requires an exact input hash and a prior `status=judged` receipt. Receipts from
+single-claim calls only match when their normalized packet shape matches too.
+
+Current limits:
+
+- There is no TTL, cache-clear command or model/prompt/settings-aware invalidation.
+  Changing provider settings alone does not force a fresh batch verdict.
+- Default receipts retain the verdict but not the response's citation IDs or
+  rationale. A cache hit can therefore return empty `evidence_ids` and `rationale`;
+  it is not a complete replay of the original cited response.
+- Use `ldf judge` / `ldf_check_claim` for a fresh cited check; those paths do not
+  use the batch cache. A deliberately separate `LDF_DATA_DIR` isolates a new
+  experiment's history without deleting existing receipts.
+- CLI input capture is available via `judge-claims --capture`; the batch MCP
+  tool currently has no capture argument. A hit does not create a new model
+  response or reconstruct missing captured input.
+
+Review each item independently and retain source evidence. Do not treat a cached
+verdict as a new observation under the current model configuration.
+
 ## Inspect and replay
 
 ```bash

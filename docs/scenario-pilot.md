@@ -1,6 +1,7 @@
 # Wider usage without stretching the contract
 
-Local Decision Framework exposes one factual claim-check tool. The Skill includes ten optional recipes across coding, debugging observations, test/report consistency, requirements, BAU status, documents and individual checklist items.
+Local Decision Framework exposes single-claim and batch claim-check tools. A batch
+returns independent results over shared evidence; it is not a choice or ranking contract. The Skill includes optional recipes across coding, debugging observations, test/report consistency, requirements, BAU status, documents and individual checklist items.
 
 A recipe must preserve the claim's meaning. A trace containing a failure does not establish its cause. A test for one acceptance criterion does not establish complete coverage. A supported prerequisite is not permission to deploy. Arithmetic, dates and set completeness belong in deterministic tools.
 

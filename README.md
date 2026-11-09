@@ -34,7 +34,7 @@ uv venv .venv
 uv pip install --python .venv/bin/python -e .
 ```
 
-The package installs `ldf` and `ldf-mcp`, exposes the MCP tool `ldf_check_claim`, and uses `LDF_*` settings with data under `~/.local/share/ldf`. For backward compatibility with existing integrations, the legacy `jev` / `jev-mcp` commands, the `jev` Python namespace, `JEV_*` environment variables (silently respected), and an existing `~/.local/share/jev` data directory continue to work. "Jev" in this repository refers only to this legacy naming and to the TypeSafe project credited above; this tool is unrelated to any hosted Jev service.
+The package installs `ldf` and `ldf-mcp`, exposes the MCP tools listed below, and uses `LDF_*` settings with data under `~/.local/share/ldf`. For backward compatibility with existing integrations, the legacy `jev` / `jev-mcp` commands, the `jev` Python namespace, `JEV_*` environment variables (silently respected), and an existing `~/.local/share/jev` data directory continue to work. "Jev" in this repository refers only to this legacy naming and to the TypeSafe project credited above; this tool is unrelated to any hosted Jev service.
 
 ## Configure a model
 
@@ -66,7 +66,10 @@ Every `LDF_*` setting also accepts its legacy `JEV_*` spelling, so existing conf
 
 Use a mode supported by your backend. Schema-constrained output still passes local strict validation; JSON validity and valid citations do not establish judgement correctness.
 
-The completion-token budget and the 1200-character rationale limit are separate. Prompt v3 requests 1–3 short sentences, preferably under 400 characters and never over 1200. A larger completion budget does not relax local validation or make a truncated response usable. The Alma deployment is observing a per-server `JEV_MAX_OUTPUT_TOKENS=2400` override during normal use on 2026-11-06; the library default remains 1200.
+The completion-token budget and the 1200-character rationale limit are separate.
+Prompt v3 requests 1–3 short sentences, preferably under 400 characters. Raising
+`LDF_MAX_OUTPUT_TOKENS` does not relax local validation or make a truncated
+response usable. See [troubleshooting](#troubleshooting) for output-budget issues.
 
 ## Check a claim
 
@@ -82,7 +85,71 @@ printf '%s\n' '{
 
 Evidence blocks have a unique `id`, nonblank `text`, and optional `scope` and `source`. Locators are labels, not resources the tool fetches. Flows are `direct` and `evidence-first`.
 
-Only `status=judged` carries a usable verdict. `unavailable`, `invalid_model_output`, and `rejected` provide no verdict. Review consequential conclusions against their sources.
+Illustrative response, not a recorded model run (IDs and timing vary):
+
+```json
+{
+  "status": "judged",
+  "request_id": "example-receipt-id",
+  "duration_ms": 1000,
+  "persistence": "recorded",
+  "verdict": "contradicted",
+  "evidence_ids": ["run"],
+  "rationale": "The supplied run records two failed requests."
+}
+```
+
+`status` describes processing; `verdict` answers the claim. `contradicted` is a
+successful check that disagrees with the claim, not a connection failure.
+`evidence_ids` cites IDs from your input. Only `status=judged` carries a usable
+single-claim verdict. `unavailable`, `invalid_model_output`, and `rejected` provide
+none. Review consequential conclusions against their sources.
+
+**CLI exit codes:** handled semantic and operational results currently return
+exit code 0, including `contradicted`, `rejected` and `unavailable`. Parse the JSON
+`status` and `verdict`; do not use `$?` as the judgement or health result.
+Argparse usage errors exit 2; an uncaught runtime failure can exit nonzero.
+Likewise, `doctor --probe` checks the models endpoint, not a complete judgement.
+
+## Check several claims
+
+Use `ldf judge-claims` or MCP `ldf_check_claims` for 1–8 independent claims against
+at most 12 shared evidence blocks. Claim IDs must be unique within the batch.
+Misses are checked sequentially; one batch is not one combined model judgement.
+
+```sh
+printf '%s\n' '{
+  "claims": [
+    {"id": "requests", "claim": "The run recorded 1000 requests."},
+    {"id": "failures", "claim": "The run recorded no failures."}
+  ],
+  "evidence": [{"id": "run", "text": "Requests: 1000; failed requests: 2."}],
+  "flow": "direct"
+}' | .venv/bin/ldf judge-claims
+```
+
+The result has `status: "battery"`, `battery_hash`, a numeric `cached` count and
+`results` in input order. Each result identifies `claim_id`, `request_id` and
+`cached`. Uncached entries have their own `status`; a judged entry also has a
+verdict and citations. A provider failure for one claim does not make the whole
+batch supported or prevent later claims from being attempted. Invalid batch
+input is rejected before the loop.
+
+Previously judged matching inputs can return cached verdicts without another
+model call. Cached entries currently omit `status` and can lack citations and
+rationale retained by the original response. There is no TTL or automatic
+model/settings invalidation. For a fresh cited check, use the single-claim tool
+or `ldf judge`. Read the [batch/cache contract](docs/observability-replay.md#batch-results-and-cache)
+before using batches in an automated decision path.
+
+## Troubleshooting
+
+| Symptom | Check / action |
+| --- | --- |
+| Missing endpoint/model, failed probe or authentication | Set `LDF_BASE_URL` including `/v1` and the exact model ID. Check the configured key file is readable. `doctor --probe` expects the model in `/models`; a backend that omits that endpoint can fail the probe even if chat works. Inspect `error_code` and receipt diagnostics without printing credentials. |
+| Provider rejects structured output | Explicitly select a backend-supported `LDF_OUTPUT_MODE`: `json_schema`, `json_object`, or `plain`. The tool never changes provider or format automatically; plain output still passes strict local validation. |
+| Timeout or truncated/invalid output | Inspect the receipt's failure/finish diagnostics. Adjust `LDF_TIMEOUT` (1–300 seconds) for latency or `LDF_MAX_OUTPUT_TOKENS` (1–8192) for completion budget. The rationale limit remains 1200 characters. Retry deliberately; a partial result has no usable verdict. |
+
 
 ## MCP and Skills
 
@@ -104,7 +171,17 @@ Register this stdio server in your client, replacing the paths and model setting
 }
 ```
 
-The server exposes three tools: `ldf_check_claim`, `ldf_summarize_output`, and `ldf_fetch_evidence`. Client-qualified names may vary. For existing integrations, the legacy `jev-mcp` command launches the same server.
+The server exposes four tools:
+
+| Tool | Purpose |
+| --- | --- |
+| `ldf_check_claim` | One factual claim, with a fresh check against supplied evidence |
+| `ldf_check_claims` | Up to eight independent claims sharing evidence, with receipt-based cache reuse |
+| `ldf_summarize_output` | Deterministic summary of a registered output source |
+| `ldf_fetch_evidence` | Bounded original lines from a registered source |
+
+Client-qualified names may vary. For existing integrations, the legacy `jev-mcp`
+command launches the same server. Use the CLI to register output sources first.
 
 [SKILL.md](SKILL.md) teaches when to call it across coding and BAU tasks, how to prepare bounded evidence, and when to abstain. Install it through your agent's Skill mechanism and set its CLI fallback path for your machine. Invocation stays optional and advisory.
 
