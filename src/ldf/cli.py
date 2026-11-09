@@ -37,7 +37,7 @@ def main():
     except OSError: _emit({'status':'unavailable','missing':[],'probed':True,'error_code':'key_file_unavailable'}); return
    req=urllib.request.Request(url.rstrip('/')+'/models',headers={'Authorization':'Bearer '+key} if key else {})
    try:
-    with urllib.request.urlopen(req,timeout=_timeout(_env('TIMEOUT','30'))) as response: data=json.loads(response.read(1000000))
+    with urllib.request.urlopen(req,timeout=_timeout(_env('TIMEOUT','90'))) as response: data=json.loads(response.read(1000000))
     ok=response.status==200 and isinstance(data,dict) and isinstance(data.get('data'),list) and any(isinstance(m,dict) and m.get('id')==_env('MODEL') for m in data['data'])
     _emit({'status':'configured' if ok else 'unavailable','missing':[],'probed':True,'error_code':None if ok else 'invalid_models_response'})
    except Exception: _emit({'status':'unavailable','missing':[],'probed':True,'error_code':'probe_failed'})

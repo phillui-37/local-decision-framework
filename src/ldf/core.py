@@ -90,8 +90,8 @@ def _timeout(v):
 def _capture_enabled(explicit): return bool(explicit or _env('CAPTURE','').lower() in ('1','true','yes'))
 def judge(packet,config=None,*,capture=False,capture_response=None,parent_request_id=None):
  p=validate(packet); client=p.get('client') or (_env('CLIENT_NAME') or None); cfg=config or {}; url=cfg.get('url') or _env('BASE_URL'); model=cfg.get('model') or _env('MODEL'); key=cfg.get('key') or _env('API_KEY'); rid=uuid.uuid4().hex; flow=p.get('flow','direct')
- timeout=_timeout(cfg.get('timeout',_env('TIMEOUT','30')))
- try: limit=int(cfg.get('max_tokens',_env('MAX_OUTPUT_TOKENS','1200'))); assert 1<=limit<=8192
+ timeout=_timeout(cfg.get('timeout',_env('TIMEOUT','90')))
+ try: limit=int(cfg.get('max_tokens',_env('MAX_OUTPUT_TOKENS','2400'))); assert 1<=limit<=8192
  except (ValueError,TypeError,AssertionError): limit=None
  effort=cfg.get('reasoning_effort',_env('REASONING_EFFORT')); mode=cfg.get('output_mode') or _env('OUTPUT_MODE','json_object')
  if mode not in ('json_schema','json_object','plain'): mode='invalid'
