@@ -16,6 +16,48 @@ Operational failures and invalid model responses are separate from semantic verd
 
 Use it selectively for code/diff facts, debugging observations, requirement/report consistency, BAU status, document checks, and individual checklist items. Skip obvious facts, arithmetic, and checks already resolved by direct verification.
 
+## How it works
+
+An agent or CLI caller supplies a claim and bounded evidence. The shared Python
+core validates the packet, calls the configured OpenAI-compatible endpoint when
+needed, validates the verdict and citations, and attempts to write a local
+receipt. The MCP server waits for tool requests; it does not check claims in the
+background or discover and configure models automatically.
+
+```mermaid
+flowchart LR
+    Agent["Coding agent / MCP client"] --> MCP["LDF MCP server over stdio"]
+    Caller["CLI caller"] --> CLI["ldf CLI"]
+    MCP --> Core["Shared Python claim-check core"]
+    CLI --> Core
+    Core --> Endpoint["Configured /chat/completions endpoint"]
+    Core --> Receipts["Local receipts; optional captures"]
+```
+
+For a single claim with valid timeout and output settings:
+
+```mermaid
+flowchart TD
+    Input["Claim + supplied evidence"] --> Validate{"Valid packet?"}
+    Validate -->|No| Rejected["rejected; no provider call"]
+    Validate -->|Yes| Evidence{"Evidence supplied?"}
+    Evidence -->|No| Abstain["judged: insufficient_evidence; no provider call"]
+    Evidence -->|Yes| Config{"Endpoint and model configured?"}
+    Config -->|No| Unavailable["unavailable; no verdict"]
+    Config -->|Yes| Call["Call configured endpoint"]
+    Call --> Check["Validate response, verdict and citation IDs"]
+    Check --> Outcome["judged, unavailable or invalid_model_output"]
+    Abstain --> Receipt["Attempt local receipt write"]
+    Unavailable --> Receipt
+    Outcome --> Receipt
+    Receipt --> Result["Return result with persistence status"]
+```
+
+Batch checks add receipt-based cache lookup before each independent check. Output
+summaries and evidence retrieval use deterministic local code without model
+calls. See [batch checks](#check-several-claims) and
+[output evidence](#deterministic-output-evidence).
+
 ## Install
 
 Requires Python 3.10+ and an OpenAI-compatible model endpoint.
@@ -184,6 +226,26 @@ Client-qualified names may vary. For existing integrations, the legacy `jev-mcp`
 command launches the same server. Use the CLI to register output sources first.
 
 [SKILL.md](SKILL.md) teaches when to call it across coding and BAU tasks, how to prepare bounded evidence, and when to abstain. Install it through your agent's Skill mechanism and set its CLI fallback path for your machine. Invocation stays optional and advisory.
+
+## DSH integration
+
+For DSH, use the separate [dsh-ldf host plugin](https://github.com/phillui-37/dsh-ldf).
+It runs a pinned copy of this repository as a Git submodule through DSH's native
+MCP client. Its DSH adaptation includes a settings form, editable prompt guidance,
+connection lifecycle management, and the on-demand `ldf_discover_models` and
+`ldf_setup_local_model` tools. These two host tools belong to the plugin; this
+repository's MCP server exposes the four tools listed above.
+
+The plugin supports local model discovery and approved setup for Ollama and
+LM Studio. Setup requires approval of the exact runtime, model and format. The
+standalone LDF core requires an explicitly configured endpoint and model.
+
+Follow the plugin's [setup instructions](https://github.com/phillui-37/dsh-ldf#setup)
+and [settings reference](https://github.com/phillui-37/dsh-ldf#settings) for DSH
+installation, Python interpreter paths and host-specific defaults. The plugin
+supplies its own settings, including timeout and output budget, so its defaults
+can differ from the standalone defaults documented here. Its pinned upstream
+revision also determines which LDF changes are available in DSH.
 
 ## Receipts, replay and feedback
 
