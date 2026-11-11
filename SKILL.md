@@ -1,11 +1,17 @@
 ---
 name: ldf-check-claim
-description: Prefer a bounded evidence check for uncertain code facts, debugging observations, requirements, test/completion reports, BAU status, document consistency, or checklist items when the answer could change the next action. Optional and advisory; skip obvious or already verified facts.
+description: Prefer a bounded evidence check for uncertain code facts, debugging observations, requirements, test/completion reports, BAU status, document consistency, or checklist items when the answer can narrow an unresolved judgement or focus the next step. Optional and advisory; skip obvious or already verified facts.
 ---
 
 # Local Decision Framework: useful checks across coding and BAU
 
-Use `ldf_check_claim` for one factual claim against short evidence already read. Discover the client-qualified MCP name; it may differ across hosts. Call when a supported, contradicted, or unresolved answer could change the next action. Do not force a call each turn, repeat unchanged checks, or use it for arithmetic or facts already settled by direct verification. Pass `caller_request_id` with the originating chat/thread ID (e.g. `alma://thread/<id>`) so each receipt traces back to its source conversation for later verification. Pass `client` with a short caller label (e.g. `alma`, `dsh`, `codex`) when the client is not already stamped via the configured client-name environment variable, so receipts record which client made the request.
+LDF is an independent implementation inspired by [Jev](https://docs.typesafe.ai/).
+Its main purpose is to quickly narrow a factual judgement to what the supplied
+evidence establishes, rules out or leaves open, so the next step is more focused.
+Token savings are secondary. Useful narrowing does not require a verdict reversal
+or an action change; a well-scoped abstention can identify missing evidence.
+
+Use `ldf_check_claim` for one factual claim against short evidence already read. Discover the client-qualified MCP name; it may differ across hosts. Call when a supported, contradicted, or unresolved answer can narrow the judgement scope or focus the next step. Do not force a call each turn, repeat unchanged checks, or use it for arithmetic or facts already settled by direct verification. Pass `caller_request_id` with the originating chat/thread ID (e.g. `alma://thread/<id>`) so each receipt traces back to its source conversation for later verification. Pass `client` with a short caller label (e.g. `alma`, `dsh`, `codex`) when the client is not already stamped via the configured client-name environment variable, so receipts record which client made the request.
 
 ## Runtime prerequisites — check before use
 
@@ -93,8 +99,33 @@ not a semantic verdict; see [README.md](README.md#check-a-claim).
 
 ## Learn from real use
 
-Keep the receipt ID. For a sampled task, optionally fill `examples/usage-review.template.json`: scenario, action before/after the check, reviewer assessment, observed outcome and review effort. Mark unknowns as unknown. A changed action or estimated time saved is not proof of benefit. Include sampled skipped opportunities; do not create a log for every routine action.
+At existing task wrap-up, record a useful scope narrowing, source-reviewed
+correction, confirmed unnecessary abstention, action change or newly known
+outcome when observed. Update the same case rather than logging every call or
+starting extra review work. Use `examples/usage-review.template.json` in private
+local task records, outside Git, and leave unknown fields unknown:
 
-Corrections use `ldf feedback add ID EXPECTED --kind agent-test --reason TEXT`. Use `--kind human` only for actual human feedback. Count false support, false contradiction and unnecessary abstention separately. Provider/schema failures can become issues without a verdict. Use `ldf issue list/show/update`; regression-tested requires a successful linked replay.
+- Keep the receipt and original evidence references. Use `decision_question` and
+  `notes` for what was uncertain, what the check settled or ruled out, and the
+  remaining evidence or next step. A skill-only install may lack the template;
+  locate it in the source package rather than installing a runtime to record notes.
+- Judge correctness against the original supplied evidence. New evidence can
+  justify a changed verdict without making an earlier abstention an error.
+- Record a pre-check action only from contemporaneous records; do not invent a
+  baseline afterward. Keep actual action, observed outcome, review effort and
+  perceived benefit separate. No action change does not imply no useful narrowing.
+
+For a reviewed expected verdict, use
+`ldf feedback add ID EXPECTED --kind agent-test --reason TEXT`; `human` is only
+for actual human review. Each add creates a new issue: retain its ID, check for
+an existing finding, and use documented `issue` transitions for actual fixes.
+Without a defensible expected verdict, leave the observation in the sidecar.
+`regression_tested` requires a successful matching child replay; a fresh check
+with new evidence is not proof of a fix. Do not use LDF self-ratings as ground truth.
+
+See [feedback during normal work](docs/scenario-pilot.md#feedback-during-normal-work)
+for field guidance and reporting limits. Report selected-case denominators and
+selection methods; execution success, useful narrowing and token usage are
+separate metrics. Read-only tasks keep observations in chat without writing.
 
 For explicitly authorized debugging/regression work, MCP `capture=true` or `ldf judge --capture` stores input privately. Raw responses additionally require `LDF_CAPTURE_RESPONSE=1`; both are off by default. `ldf replay ID --mode original --expected LABEL` is offline; `--mode current` makes a new configured-model call. Hashes cannot reconstruct missing captures. Do not silently capture sensitive evidence or change the configured provider.
