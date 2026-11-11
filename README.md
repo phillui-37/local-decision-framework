@@ -4,6 +4,14 @@ Evidence-grounded claim checks for coding agents and everyday operational work, 
 
 **Inspired by [Jev](https://docs.typesafe.ai/)** and its separation of context from judgement questions. This is an independent prototype; it does not require the TypeSafe API or claim equivalent model quality or wire compatibility.
 
+The main purpose is to **quickly narrow the scope of a factual judgement**: what
+the supplied evidence establishes, what it rules out, and what remains open, so
+the caller can focus the next step. Token savings are a secondary effect, not
+the primary success criterion. A useful check can confirm a direction or identify
+missing evidence without changing the final action. See the
+[real-use feedback guide](docs/scenario-pilot.md#feedback-during-normal-work) for
+recording that value separately from verdict correctness and execution success.
+
 ## What it does
 
 Give it one factual claim and a small evidence packet. It returns a cited verdict:
