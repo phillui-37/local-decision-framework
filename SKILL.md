@@ -5,7 +5,7 @@ description: Prefer a bounded evidence check for uncertain code facts, debugging
 
 # Local Decision Framework: useful checks across coding and BAU
 
-Use `jev_check_claim` for one factual claim against short evidence already read. Discover the client-qualified MCP name; it may differ across hosts. Call when a supported, contradicted, or unresolved answer could change the next action. Do not force a call each turn, repeat unchanged checks, or use it for arithmetic or facts already settled by direct verification. Pass `caller_request_id` with the originating chat/thread ID (e.g. `alma://thread/<id>`) so each receipt traces back to its source conversation for later verification. Pass `client` with a short caller label (e.g. `alma`, `dsh`, `codex`) when the client is not already stamped via `JEV_CLIENT_NAME`, so receipts record which client made the request.
+Use `jev_check_claim` for one factual claim against short evidence already read. Discover the client-qualified MCP name; it may differ across hosts. Call when a supported, contradicted, or unresolved answer could change the next action. Do not force a call each turn, repeat unchanged checks, or use it for arithmetic or facts already settled by direct verification. The MCP tool accepts `caller_request_id`; in JSON sent to the CLI, use `request_id` instead. The CLI records that value as `caller_request_id` in its receipt. Pass the originating chat/thread ID (e.g. `alma://thread/<id>`) so the receipt can be traced to its source conversation. Pass `client` with a short caller label (e.g. `alma`, `dsh`, `codex`) when the client is not already stamped via `JEV_CLIENT_NAME`, so receipts record which caller made the request.
 
 ## Runtime prerequisites — check before use
 
@@ -67,7 +67,9 @@ import json, subprocess
 packet = {
     "claim": "The supplied results support the report's zero-error claim.",
     "evidence": [{"id": "run:errors", "text": "Requests: 42646; failed requests: 1."}],
-    "flow": "direct"
+    "flow": "direct",
+    "request_id": "alma://thread/<originating-thread-id>",
+    "client": "alma"
 }
 r = subprocess.run(["/absolute/path/to/jev", "judge"],
                    input=json.dumps(packet), text=True, capture_output=True, check=True)

@@ -1,5 +1,7 @@
 # Local Decision Framework
 
+[![M8ven Score](https://m8ven.ai/badge/mcp/phillui-37-local-decision-framework-1srh39)](https://m8ven.ai/mcp/phillui-37-local-decision-framework-1srh39?s=readme)
+
 Evidence-grounded claim checks for coding agents and everyday operational work, through a shared Python core, CLI, and MCP server.
 
 **Inspired by [Jev](https://docs.typesafe.ai/)** and its separation of context from judgement questions. This is an independent prototype; it does not require the TypeSafe API or claim equivalent model quality or wire compatibility.
@@ -72,11 +74,13 @@ printf '%s\n' '{
   "evidence": [
     {"id": "run", "text": "Requests: 1000; failed requests: 2."}
   ],
-  "flow": "direct"
+  "flow": "direct",
+  "request_id": "alma://thread/<originating-thread-id>",
+  "client": "alma"
 }' | .venv/bin/ldf judge
 ```
 
-Evidence blocks have a unique `id`, nonblank `text`, and optional `scope` and `source`. Locators are labels, not resources the tool fetches. Flows are `direct` and `evidence-first`.
+Evidence blocks have a unique `id`, nonblank `text`, and optional `scope` and `source`. Locators are labels, not resources the tool fetches. Flows are `direct` and `evidence-first`. The optional CLI `request_id` is returned as `caller_request_id` in the receipt. Set `client` when `JEV_CLIENT_NAME` is not configured.
 
 Only `status=judged` carries a usable verdict. `unavailable`, `invalid_model_output`, and `rejected` provide no verdict. Review consequential conclusions against their sources.
 
