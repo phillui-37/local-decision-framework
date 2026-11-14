@@ -1,21 +1,21 @@
 import json, os, pathlib, subprocess, sys, tempfile, unittest
 from unittest.mock import patch
-from jev import evidence
+from ldf import evidence
 
 class EvidenceTests(unittest.TestCase):
  def setUp(self):
-  self.tmp=tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup); self.env=patch.dict(os.environ,{'JEV_DATA_DIR':self.tmp.name}); self.env.start(); self.addCleanup(self.env.stop)
+  self.tmp=tempfile.TemporaryDirectory(); self.addCleanup(self.tmp.cleanup); self.env=patch.dict(os.environ,{'LDF_DATA_DIR':self.tmp.name}); self.env.start(); self.addCleanup(self.env.stop)
  def source(self,text):
   p=pathlib.Path(self.tmp.name)/'input.txt'; p.write_text(text); return evidence.register(str(p))
  def test_generic_phrases_sum_across_occurrences(self):
-  from jev.evidence import register, summarize
+  from ldf.evidence import register, summarize
   with tempfile.TemporaryDirectory() as d:
-   os.environ['JEV_DATA_DIR']=d
+   os.environ['LDF_DATA_DIR']=d
    try:
     f=pathlib.Path(d,'g.log'); f.write_text('1 failed\n0 failed\n')
     s=summarize(register(str(f))['ref_id'])
     self.assertEqual(s['counts']['failed'],1); self.assertEqual(s['status'],'fail')
-   finally: os.environ.pop('JEV_DATA_DIR',None)
+   finally: os.environ.pop('LDF_DATA_DIR',None)
  def test_maven_and_fetch(self):
   r=self.source('Tests run: 4, Failures: 1, Errors: 0, Skipped: 1\n09:03:02 [main] ERROR app - bad\n')
   s=evidence.summarize(r['ref_id']); self.assertEqual(s['counts']['tests_total'],4); self.assertEqual(s['first_failure']['line'],2)
@@ -89,8 +89,8 @@ class EvidenceTests(unittest.TestCase):
   self.assertEqual([x['line'] for x in result['lines']],[1,2,3])
   self.assertEqual(result['total_matches_in_source'],1)
  def test_cli_registers_stdin_source_end_to_end(self):
-  env=dict(os.environ,PYTHONPATH='src',JEV_DATA_DIR=self.tmp.name)
-  registered=subprocess.run([sys.executable,'-m','jev.cli','source','register','-'],input='Tests run: 2, Failures: 0, Errors: 0, Skipped: 0\n',text=True,capture_output=True,env=env,check=True)
+  env=dict(os.environ,PYTHONPATH='src',LDF_DATA_DIR=self.tmp.name)
+  registered=subprocess.run([sys.executable,'-m','ldf.cli','source','register','-'],input='Tests run: 2, Failures: 0, Errors: 0, Skipped: 0\n',text=True,capture_output=True,env=env,check=True)
   row=json.loads(registered.stdout)
   self.assertEqual(evidence.summarize(row['ref_id'])['status'],'pass')
   self.assertEqual(pathlib.Path(row['path']).read_text(),'Tests run: 2, Failures: 0, Errors: 0, Skipped: 0\n')

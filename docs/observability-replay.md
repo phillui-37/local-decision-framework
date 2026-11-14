@@ -4,7 +4,7 @@ Local Decision Framework keeps execution metadata by default. This supports trac
 
 ## Storage and privacy
 
-`JEV_DATA_DIR` selects a private local data directory, defaulting to `~/.local/share/jev` for compatibility. `JEV_RECEIPTS_FILE`, `JEV_FEEDBACK_FILE`, and `JEV_CAPTURE_DIR` can override individual paths. Do not put runtime storage inside version-controlled source.
+`LDF_DATA_DIR` selects a private local data directory, defaulting to the existing local data directory. `LDF_RECEIPTS_FILE`, `LDF_FEEDBACK_FILE`, and `LDF_CAPTURE_DIR` can override individual paths. Do not put runtime storage inside version-controlled source.
 
 Receipts record status/verdict, timing, safe HTTP/validation diagnostics, configured/returned model IDs, settings, prompt/schema identities and source/input hashes. Unknown usage is null. Provider credentials and error bodies are not logged as diagnostics.
 
@@ -12,10 +12,50 @@ Input capture and response capture are separate opt-ins:
 
 ```bash
 ldf judge --capture < packet.json
-JEV_CAPTURE_RESPONSE=1 ldf judge --capture < packet.json
+LDF_CAPTURE_RESPONSE=1 ldf judge --capture < packet.json
 ```
 
-`JEV_CAPTURE=1` enables input capture for a deliberately configured debugging session. Captured inputs contain the supplied evidence, so enable this only in a trusted local data directory. Raw provider responses are bounded and marked when truncated. Capture files are created with private permissions. Source labels are not fetched.
+`LDF_CAPTURE=1` enables input capture for a deliberately configured debugging session. Captured inputs contain the supplied evidence, so enable this only in a trusted local data directory. Raw provider responses are bounded and marked when truncated. Capture files are created with private permissions. Source labels are not fetched.
+
+## Batch results and cache
+
+`ldf judge-claims` / `ldf_check_claims` accepts 1–8 claims and at most 12 shared
+evidence blocks. It checks uncached claims sequentially through the single-claim
+core. Invalid input rejects the batch before the loop; an operational failure
+returned for a claim is recorded in that claim's result and processing continues.
+The top-level `status=battery` does not assert that every claim was judged.
+
+The response contains `battery_hash`, a numeric `cached` count and ordered
+`results`. Each item has `claim_id`, `request_id`, `duration_ms` and `cached`.
+Uncached items carry their own `status`; judged ones also carry `verdict`,
+`evidence_ids` and `rationale`. Failed items can carry `error_code` without a
+verdict. Cached items currently omit `status` and reuse a prior receipt ID.
+The separate battery receipt records claim/cache counts and a `provider_calls`
+counter. That counter counts cache misses passed to the judge, not confirmed
+HTTP requests (a configuration failure may occur before HTTP).
+
+Cache matching hashes the normalized single-claim packet: claim text, shared
+evidence (including order and supplied fields), flow, caller request ID and
+resolved client. The batch's claim ID is not part of that per-claim key. Reuse
+requires an exact input hash and a prior `status=judged` receipt. Receipts from
+single-claim calls only match when their normalized packet shape matches too.
+
+Current limits:
+
+- There is no TTL, cache-clear command or model/prompt/settings-aware invalidation.
+  Changing provider settings alone does not force a fresh batch verdict.
+- Default receipts retain the verdict but not the response's citation IDs or
+  rationale. A cache hit can therefore return empty `evidence_ids` and `rationale`;
+  it is not a complete replay of the original cited response.
+- Use `ldf judge` / `ldf_check_claim` for a fresh cited check; those paths do not
+  use the batch cache. A deliberately separate `LDF_DATA_DIR` isolates a new
+  experiment's history without deleting existing receipts.
+- CLI input capture is available via `judge-claims --capture`; the batch MCP
+  tool currently has no capture argument. A hit does not create a new model
+  response or reconstruct missing captured input.
+
+Review each item independently and retain source evidence. Do not treat a cached
+verdict as a new observation under the current model configuration.
 
 ## Inspect and replay
 
@@ -56,6 +96,6 @@ Keep every experiment's manifest, model/settings, versions and result directory 
 
 ## Output modes
 
-Set `JEV_OUTPUT_MODE` to `json_schema`, `json_object`, or `plain`. There is no silent retry with another format/provider. A strict provider-facing schema constrains offered citation IDs and uses a portable decoder subset; local validation also rejects duplicate/unknown citations and decisive results without evidence. Some providers accept only a subset of JSON Schema.
+Set `LDF_OUTPUT_MODE` to `json_schema`, `json_object`, or `plain`. There is no silent retry with another format/provider. A strict provider-facing schema constrains offered citation IDs and uses a portable decoder subset; local validation also rejects duplicate/unknown citations and decisive results without evidence. Some providers accept only a subset of JSON Schema.
 
 Logging and replay establish traceability and reproducibility of recorded processing. Answer quality and decision usefulness still need review against appropriate task evidence.

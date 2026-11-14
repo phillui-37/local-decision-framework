@@ -16,7 +16,7 @@ class WindowsMcpStdioTests(unittest.TestCase):
 
         async def exercise(env):
             process = await asyncio.create_subprocess_exec(
-                sys.executable, "-m", "jev.mcp_server",
+                sys.executable, "-m", "ldf.mcp_server",
                 stdin=asyncio.subprocess.PIPE,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=subprocess.DEVNULL,
@@ -48,7 +48,7 @@ class WindowsMcpStdioTests(unittest.TestCase):
                 await send({
                     "jsonrpc": "2.0", "id": 2, "method": "tools/call",
                     "params": {
-                        "name": "jev_check_claim",
+                        "name": "ldf_check_claim",
                         "arguments": {"claim": "No evidence is available.", "evidence": []},
                     },
                 })
@@ -71,7 +71,7 @@ class WindowsMcpStdioTests(unittest.TestCase):
                 await process.stdin.wait_closed()
 
         with tempfile.TemporaryDirectory() as data_dir:
-            env = dict(os.environ, PYTHONPATH=str(root / "src"), JEV_DATA_DIR=data_dir)
+            env = dict(os.environ, PYTHONPATH=str(root / "src"), LDF_DATA_DIR=data_dir)
             asyncio.run(exercise(env))
             self.assertTrue((Path(data_dir) / "receipts.jsonl").is_file())
 

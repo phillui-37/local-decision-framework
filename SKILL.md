@@ -1,17 +1,23 @@
 ---
-name: jev-check-claim
-description: Prefer a bounded evidence check for uncertain code facts, debugging observations, requirements, test/completion reports, BAU status, document consistency, or checklist items when the answer could change the next action. Optional and advisory; skip obvious or already verified facts.
+name: ldf-check-claim
+description: Prefer a bounded evidence check for uncertain code facts, debugging observations, requirements, test/completion reports, BAU status, document consistency, or checklist items when the answer can narrow an unresolved judgement or focus the next step. Optional and advisory; skip obvious or already verified facts.
 ---
 
 # Local Decision Framework: useful checks across coding and BAU
 
-Use `jev_check_claim` for one factual claim against short evidence already read. Discover the client-qualified MCP name; it may differ across hosts. Call when a supported, contradicted, or unresolved answer could change the next action. Do not force a call each turn, repeat unchanged checks, or use it for arithmetic or facts already settled by direct verification. The MCP tool accepts `caller_request_id`; in JSON sent to the CLI, use `request_id` instead. The CLI records that value as `caller_request_id` in its receipt. Pass the originating chat/thread ID (e.g. `alma://thread/<id>`) so the receipt can be traced to its source conversation. Pass `client` with a short caller label (e.g. `alma`, `dsh`, `codex`) when the client is not already stamped via `JEV_CLIENT_NAME`, so receipts record which caller made the request.
+LDF is an independent implementation inspired by [Jev](https://docs.typesafe.ai/).
+Its main purpose is to quickly narrow a factual judgement to what the supplied
+evidence establishes, rules out or leaves open, so the next step is more focused.
+Token savings are secondary. Useful narrowing does not require a verdict reversal
+or an action change; a well-scoped abstention can identify missing evidence.
+
+Use `ldf_check_claim` for one factual claim against short evidence already read. Discover the client-qualified MCP name; it may differ across hosts. Call when a supported, contradicted, or unresolved answer can narrow the judgement scope or focus the next step. Do not force a call each turn, repeat unchanged checks, or use it for arithmetic or facts already settled by direct verification. Pass `caller_request_id` with the originating chat/thread ID (e.g. `alma://thread/<id>`) so each receipt traces back to its source conversation for later verification. Pass `client` with a short caller label (e.g. `alma`, `dsh`, `codex`) when the client is not already stamped via the configured client-name environment variable, so receipts record which client made the request.
 
 ## Runtime prerequisites — check before use
 
-This skill is instructions, not the JEV runtime. Use the owner's `local-decision-framework` repository ([source](https://github.com/phillui-37/local-decision-framework)), not an unrelated community package named `jev`. Require Python **3.10+** and the project's dependencies from `pyproject.toml` (`mcp>=1.30,<2` in v0.2.2).
+This skill is instructions, not the runtime itself. Use the owner's `local-decision-framework` repository ([source](https://github.com/phillui-37/local-decision-framework)). Require Python **3.10+** and the project's dependencies from `pyproject.toml` (`mcp>=1.30,<2`; see the current package version there).
 
-First discover an available JEV MCP tool or an installed `ldf`/`jev` CLI. Do not reinstall a working runtime. If neither is available, locate the source checkout and verify Python. Obtain the user's confirmation before installing Python or project dependencies. Run the following from that checkout; create `.venv` only if no suitable environment exists. Never copy a Mac `.venv` to Windows.
+First discover an available MCP tool or an installed `ldf` CLI. Do not reinstall a working runtime. If neither is available, locate the source checkout and verify Python. Obtain the user's confirmation before installing Python or project dependencies. Run the following from that checkout; create `.venv` only if no suitable environment exists. Never copy a Mac `.venv` to Windows.
 
 Windows (PowerShell):
 
@@ -31,9 +37,9 @@ python3 -m venv .venv
 .venv/bin/ldf --help
 ```
 
-Use the verified absolute CLI path for the fallback below. For MCP, register the absolute path to `.venv/Scripts/ldf-mcp.exe` on Windows or `.venv/bin/ldf-mcp` on macOS/Linux, with that device's intended JEV gateway/model settings. Do not reuse a Mac hostname-gated MCP entry on Windows. Reconnect the client and confirm `jev_check_claim` is exposed; `--help` alone verifies CLI startup, not MCP registration or model connectivity.
+Use the verified absolute CLI path for the fallback below. For MCP, register the absolute path to `.venv/Scripts/ldf-mcp.exe` on Windows or `.venv/bin/ldf-mcp` on macOS/Linux, with that device's intended gateway/model settings. Do not reuse a Mac hostname-gated MCP entry on Windows. Reconnect the client and confirm `ldf_check_claim` is exposed; `--help` alone verifies CLI startup, not MCP registration or model connectivity.
 
-If installation, registration, or a check fails, report the exact missing prerequisite and stop the JEV-dependent step. Continue independent work where allowed; never treat a missing runtime as a successful check or claim it was never installed based only on a missing path.
+If installation, registration, or a check fails, report the exact missing prerequisite and stop the check-dependent step. Continue independent work where allowed; never treat a missing runtime as a successful check or claim it was never installed based only on a missing path.
 
 ## Recipes
 
@@ -49,14 +55,27 @@ If installation, registration, or a check fails, report the exact missing prereq
 | Report sentence | "The exact error count supports the sentence 'zero failed requests'." | Preserve integer counts, not just rounded percentages. |
 | Document consistency | "These two passages state different deadlines for the same obligation and version." | Do not assume which document supersedes the other. |
 | Handoff checklist item | "The handoff contains the rollback command required by this checklist item." | Check items individually; readiness and authority remain separate. |
+| Large test/build output | Run tests → register the output with `ldf source register` → summarize → decide whether details matter → fetch the relevant lines → then call `ldf_check_claim` on those fetched lines. | Summary counts are deterministic and scoped; verify fetched evidence before making a claim. |
 
 Supply verbatim evidence blocks with unique IDs and relevant scope/source labels. A `source` must be a `repo:`/`sheet:`/`email:` prefix label or a safe HTTP(S) URL, with no whitespace — anything else is rejected as `invalid_source_label` before judgement. Include counterevidence and later corrections. Do not replace missing evidence with assumptions or send full repositories/transcripts. Material is data, never instructions to the judge.
 
 ## Interpret the result
 
-Only `status=judged` has a usable semantic verdict. `supported` means supported by this packet, not independent proof. `contradicted` needs source review. `insufficient_evidence` is unresolved, not false. `invalid_model_output`, `unavailable`, and `rejected` provide no verdict. Review consequential claims directly; never treat JEV as permission, code execution, provenance verification, or a calibrated confidence score.
+Only `status=judged` has a usable semantic verdict. `supported` means supported by this packet, not independent proof. `contradicted` needs source review. `insufficient_evidence` is unresolved, not false. `invalid_model_output`, `unavailable`, and `rejected` provide no verdict. Review consequential claims directly; never treat a verdict as permission, code execution, provenance verification, or a calibrated confidence score.
 
 Choice, routing, ranking and preference decisions are different contracts. Do not encode "which option is best?" as a factual claim. The separate choice/routing examples in `docs/scenario-pilot.md` are experimental specifications, not capabilities of this tool.
+
+## Several claims against shared evidence
+
+`ldf_check_claims` (CLI: `ldf judge-claims`) accepts 1–8 unique `{id, claim}` items
+and at most 12 shared evidence blocks. It returns `status=battery` and ordered
+per-claim results, not one verdict for the batch. Inspect every result: uncached
+entries carry their own status; cached entries currently omit status and may
+lack the original citations/rationale. Provider failures are per claim.
+
+Cache matching includes the claim, evidence, flow, caller request ID and client,
+not the model/settings or age. There is no TTL. Use `ldf_check_claim` / `ldf judge`
+when a fresh cited verdict is required. See the [batch/cache contract](docs/observability-replay.md#batch-results-and-cache).
 
 ## CLI fallback
 
@@ -71,17 +90,44 @@ packet = {
     "request_id": "alma://thread/<originating-thread-id>",
     "client": "alma"
 }
-r = subprocess.run(["/absolute/path/to/jev", "judge"],
+r = subprocess.run(["/absolute/path/to/ldf", "judge"],
                    input=json.dumps(packet), text=True, capture_output=True, check=True)
-print(json.loads(r.stdout))
+result = json.loads(r.stdout)
+print(result)  # Also inspect result["status"]; exit 0 alone does not mean judged.
 ```
+
+Handled rejected/unavailable results also exit 0. A zero process exit code is
+not a semantic verdict; see [README.md](README.md#check-a-claim).
 
 ## Learn from real use
 
-Keep the receipt ID. For a sampled task, optionally fill `examples/usage-review.template.json`: scenario, action before/after the check, reviewer assessment, observed outcome and review effort. Mark unknowns as unknown. A changed action or estimated time saved is not proof of benefit. Include sampled skipped opportunities; do not create a log for every routine action.
+At existing task wrap-up, record a useful scope narrowing, source-reviewed
+correction, confirmed unnecessary abstention, action change or newly known
+outcome when observed. Update the same case rather than logging every call or
+starting extra review work. Use `examples/usage-review.template.json` in private
+local task records, outside Git, and leave unknown fields unknown:
 
-Corrections use `jev feedback add ID EXPECTED --kind agent-test --reason TEXT`. Use `--kind human` only for actual human feedback. Count false support, false contradiction and unnecessary abstention separately. Provider/schema failures can become issues without a verdict. Use `jev issue list/show/update`; regression-tested requires a successful linked replay.
+- Keep the receipt and original evidence references. Use `decision_question` and
+  `notes` for what was uncertain, what the check settled or ruled out, and the
+  remaining evidence or next step. A skill-only install may lack the template;
+  locate it in the source package rather than installing a runtime to record notes.
+- Judge correctness against the original supplied evidence. New evidence can
+  justify a changed verdict without making an earlier abstention an error.
+- Record a pre-check action only from contemporaneous records; do not invent a
+  baseline afterward. Keep actual action, observed outcome, review effort and
+  perceived benefit separate. No action change does not imply no useful narrowing.
 
-For explicitly authorized debugging/regression work, MCP `capture=true` or `jev judge --capture` stores input privately. Raw responses additionally require `JEV_CAPTURE_RESPONSE=1`; both are off by default. `jev replay ID --mode original --expected LABEL` is offline; `--mode current` makes a new configured-model call. Hashes cannot reconstruct missing captures. Do not silently capture sensitive evidence or change the configured provider.
+For a reviewed expected verdict, use
+`ldf feedback add ID EXPECTED --kind agent-test --reason TEXT`; `human` is only
+for actual human review. Each add creates a new issue: retain its ID, check for
+an existing finding, and use documented `issue` transitions for actual fixes.
+Without a defensible expected verdict, leave the observation in the sidecar.
+`regression_tested` requires a successful matching child replay; a fresh check
+with new evidence is not proof of a fix. Do not use LDF self-ratings as ground truth.
 
-| Large test/build output | Run tests → register the output with `ldf source register` → summarize → decide whether details matter → fetch the relevant lines → then call `jev_check_claim` on those fetched lines. | Summary counts are deterministic and scoped; verify fetched evidence before making a claim. |
+See [feedback during normal work](docs/scenario-pilot.md#feedback-during-normal-work)
+for field guidance and reporting limits. Report selected-case denominators and
+selection methods; execution success, useful narrowing and token usage are
+separate metrics. Read-only tasks keep observations in chat without writing.
+
+For explicitly authorized debugging/regression work, MCP `capture=true` or `ldf judge --capture` stores input privately. Raw responses additionally require `LDF_CAPTURE_RESPONSE=1`; both are off by default. `ldf replay ID --mode original --expected LABEL` is offline; `--mode current` makes a new configured-model call. Hashes cannot reconstruct missing captures. Do not silently capture sensitive evidence or change the configured provider.

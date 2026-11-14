@@ -1,0 +1,46 @@
+{
+ "cases": [
+  {
+   "id": "battery-cached-verbatim",
+   "claim": "The battery tool returns cached verdicts without provider calls for repeated identical claims.",
+   "expected": "supported",
+   "evidence_ids": [
+    "t-core"
+   ],
+   "evidence": [
+    {
+     "id": "t-core",
+     "text": "test_battery_cache_hits_skip_provider: first call cached=0 with Fake.calls=2; second call cached=2 with Fake.calls=0."
+    }
+   ]
+  },
+  {
+   "id": "battery-probe-hash",
+   "claim": "The cache probe hashes the exact packet judge receives, key-for-key.",
+   "expected": "supported",
+   "evidence_ids": [
+    "t-core"
+   ],
+   "evidence": [
+    {
+     "id": "t-core",
+     "text": "probe_packet(c) returns {'claim': c['claim'], 'evidence': b['evidence'], 'flow': flow, 'request_id': b.get('request_id'), 'client': client}, identical to the packet passed to judge()."
+    }
+   ]
+  },
+  {
+   "id": "battery-shape",
+   "claim": "Batteries reject empty claims, duplicate ids, and more than 8 claims.",
+   "expected": "supported",
+   "evidence_ids": [
+    "t-core"
+   ],
+   "evidence": [
+    {
+     "id": "t-core",
+     "text": "validate_battery raises invalid_claims for [] and for 9 claims; invalid_claim_id for duplicate ids."
+    }
+   ]
+  }
+ ]
+}
