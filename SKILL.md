@@ -86,7 +86,9 @@ import json, subprocess
 packet = {
     "claim": "The supplied results support the report's zero-error claim.",
     "evidence": [{"id": "run:errors", "text": "Requests: 42646; failed requests: 1."}],
-    "flow": "direct"
+    "flow": "direct",
+    "request_id": "alma://thread/<originating-thread-id>",
+    "client": "alma"
 }
 r = subprocess.run(["/absolute/path/to/ldf", "judge"],
                    input=json.dumps(packet), text=True, capture_output=True, check=True)
