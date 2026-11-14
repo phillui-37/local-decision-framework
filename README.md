@@ -207,6 +207,11 @@ before using batches in an automated decision path.
 
 ## MCP and Skills
 
+[SKILL.md](SKILL.md) is a short entry contract. Packet recipes, runtime setup,
+batch/cache behavior and feedback procedures live in `references/`; load only
+the detail the current operation needs. A host may explicitly select broader
+development checks without making them the package default.
+
 Register this stdio server in your client, replacing the paths and model settings:
 
 ```json

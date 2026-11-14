@@ -1,6 +1,7 @@
 include README.md SKILL.md pyproject.toml
-include docs/observability-replay.md docs/scenario-pilot.md
+include docs/observability-replay.md docs/scenario-pilot.md docs/evidence-layer.md
 include examples/usage-review.template.json
+recursive-include references *.md
 recursive-include src *.py
 recursive-include tests *.py
 prune work
