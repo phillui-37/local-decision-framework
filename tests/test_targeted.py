@@ -344,6 +344,39 @@ class Battery(unittest.TestCase):
    self.assertEqual(second['cached'],2); self.assertEqual(Fake.calls,0)
    self.assertEqual([x['verdict'] for x in second['results']],['supported']*2)
    for x in second['results']: self.assertTrue(x['cached'])
+ def test_cache_ttl_expiry_and_timestamp_safety(self):
+  from datetime import datetime, timedelta, timezone
+  from ldf.core import judge_claims
+  Fake.mode='ok'; packet=self._battery(1); config={'url':self.url,'model':'configured'}
+  now=datetime.now(timezone.utc)
+  cases=[('fresh',(now-timedelta(seconds=30)).isoformat(),60,True),('expired',(now-timedelta(seconds=90)).isoformat(),60,False),('future',(now+timedelta(days=1)).isoformat(),60,False),('naive',now.replace(tzinfo=None).isoformat(),60,False),('malformed','bad',60,False),('missing',None,60,False),('disabled',now.isoformat(),0,False)]
+  for name,stamp,ttl,hit in cases:
+   with self.subTest(name=name), tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'LDF_DATA_DIR':d,'LDF_CACHE_TTL_SECONDS':str(ttl)},clear=True):
+    first=judge_claims(packet,config); path=pathlib.Path(d,'receipts.jsonl'); rows=[json.loads(line) for line in path.read_text().splitlines()]
+    row=next(r for r in rows if r['request_id']==first['results'][0]['request_id'])
+    if stamp is None: row.pop('timestamp')
+    else: row['timestamp']=stamp
+    path.write_text(''.join(json.dumps(r)+'\n' for r in rows)); Fake.calls=0
+    result=judge_claims(packet,config)
+    self.assertEqual(result['cached'],int(hit)); self.assertEqual(Fake.calls,0 if hit else 1)
+ def test_cache_ttl_default_and_legacy_setting(self):
+  from datetime import datetime, timedelta, timezone
+  from ldf.core import judge_claims
+  Fake.mode='ok'; packet=self._battery(1); config={'url':self.url,'model':'configured'}
+  with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'LDF_DATA_DIR':d},clear=True):
+   first=judge_claims(packet,config); path=pathlib.Path(d,'receipts.jsonl'); rows=[json.loads(line) for line in path.read_text().splitlines()]
+   row=next(r for r in rows if r['request_id']==first['results'][0]['request_id']); row['timestamp']=(datetime.now(timezone.utc)-timedelta(hours=25)).isoformat()
+   path.write_text(''.join(json.dumps(r)+'\n' for r in rows))
+   with patch.dict(os.environ,{'JEV_CACHE_TTL_SECONDS':'172800'}):
+    self.assertEqual(judge_claims(packet,config)['cached'],1)
+   Fake.calls=0; result=judge_claims(packet,config)
+   self.assertEqual(result['cached'],0); self.assertEqual(Fake.calls,1)
+ def test_cache_ttl_invalid_config_rejected(self):
+  from ldf.core import judge_claims
+  for value in ('-1','nope','1.5'):
+   with self.subTest(value=value), tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'LDF_DATA_DIR':d,'LDF_CACHE_TTL_SECONDS':value},clear=True):
+    with self.assertRaises(Rejected) as error: judge_claims(self._battery(1))
+    self.assertEqual(error.exception.code,'invalid_cache_ttl')
  def test_battery_receipt_links_complete_cached_results_and_attempts(self):
   from ldf.core import judge_claims
   Fake.mode='ok'; Fake.calls=0
