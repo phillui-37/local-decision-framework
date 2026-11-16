@@ -15,6 +15,7 @@ class Fake(BaseHTTPRequestHandler):
    if type(self).mode=='failure': self.send_error(503); return
    text=('{"verdict":"supported","evidence_ids":["e1"],"rationale":"The supplied fact matches."}' if type(self).mode=='ok' else '{"verdict":"supported","evidence_ids":["secret"],"rationale":"bad"}')
    payload={'model':'returned-model','choices':[{'finish_reason':'stop','message':{'content':text}}]}
+   if type(self).mode=='missing_choice': payload={'model':'returned-model','usage':{'total_tokens':17},'choices':[]}
    if type(self).mode=='large': payload['provider_metadata']='x'*70000
    data=json.dumps(payload).encode()
   else: self.send_error(404); return
@@ -343,6 +344,51 @@ class Battery(unittest.TestCase):
    self.assertEqual(second['cached'],2); self.assertEqual(Fake.calls,0)
    self.assertEqual([x['verdict'] for x in second['results']],['supported']*2)
    for x in second['results']: self.assertTrue(x['cached'])
+ def test_battery_receipt_links_complete_cached_results_and_attempts(self):
+  from ldf.core import judge_claims
+  Fake.mode='ok'; Fake.calls=0
+  with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'LDF_DATA_DIR':d},clear=True):
+   packet=self._battery(2); first=judge_claims(packet,{'url':self.url,'model':'configured'})
+   second=judge_claims(packet,{'url':self.url,'model':'configured'})
+   self.assertEqual((first['cache_misses'],first['http_attempts'],second['cached'],second['http_attempts']),(2,2,2,0))
+   for a,b in zip(first['results'],second['results']):
+    self.assertEqual((b['status'],b['evidence_ids'],b['rationale']),('judged',a['evidence_ids'],a['rationale']))
+   rows=[json.loads(line) for line in pathlib.Path(d,'receipts.jsonl').read_text().splitlines()]
+   summary=next(x for x in rows if x['request_id']==second['request_id'])
+   self.assertEqual([x['request_id'] for x in summary['claim_receipts']],[x['request_id'] for x in first['results']])
+   self.assertTrue(all(x['battery_request_id']==first['request_id'] for x in rows if x.get('claim_id')))
+ def test_battery_persistence_failure_preserves_completed_results(self):
+  from ldf.core import judge_claims
+  with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'LDF_DATA_DIR':d},clear=True), patch('ldf.core._append',side_effect=OSError('disk full')):
+   result=judge_claims(self._battery(1))
+   self.assertEqual(result['persistence'],'failed'); self.assertEqual(result['results'][0]['persistence'],'failed')
+   self.assertEqual((result['cache_misses'],result['http_attempts']),(1,0))
+ def test_rejected_packet_and_corrupt_receipt_are_visible(self):
+  from ldf.core import judge_claims
+  with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'LDF_DATA_DIR':d},clear=True):
+   with self.assertRaises(Rejected) as error: judge({'claim':'','evidence':[]})
+   self.assertEqual(error.exception.persistence,'recorded')
+   row=json.loads(pathlib.Path(d,'receipts.jsonl').read_text()); self.assertEqual(row['failure_code'],'invalid_claim')
+   pathlib.Path(d,'receipts.jsonl').write_bytes(b'{broken}\n')
+   with self.assertRaises(Rejected) as corrupt: judge_claims(self._battery(1))
+   self.assertEqual(corrupt.exception.code,'corrupt_storage'); self.assertIn('line 1',str(corrupt.exception))
+ def test_usage_survives_malformed_provider_choice(self):
+  with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'LDF_DATA_DIR':d},clear=True):
+   Fake.mode='missing_choice'
+   result=judge({'claim':'x','evidence':[{'id':'e1','text':'x'}]},{'url':self.url,'model':'configured'})
+   self.assertEqual(result['status'],'unavailable')
+   row=json.loads(pathlib.Path(d,'receipts.jsonl').read_text())
+   self.assertEqual(row['token_usage'],{'total_tokens':17}); self.assertTrue(row['http_attempted'])
+ def test_receipt_provenance_uses_repository_revision(self):
+  with tempfile.TemporaryDirectory() as d, patch.dict(os.environ,{'LDF_DATA_DIR':d},clear=True):
+   judge({'claim':'x','evidence':[]})
+   row=json.loads(pathlib.Path(d,'receipts.jsonl').read_text())
+   revision=subprocess.check_output(['git','rev-parse','HEAD'],text=True).strip()
+   self.assertEqual(row['git_revision'],revision)
+   from importlib.metadata import PackageNotFoundError, version
+   try: installed=version('local-decision-framework')
+   except PackageNotFoundError: installed=None
+   self.assertEqual(row['package_version'],installed)
  def test_battery_failure_propagates_per_claim(self):
   from ldf.core import judge_claims
   Fake.mode='failure'

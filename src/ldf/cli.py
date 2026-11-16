@@ -121,7 +121,7 @@ def main():
    complete=len(results)==len(cases)
    _emit({'status':'complete' if complete else 'incomplete','manifest_hash':__import__('hashlib').sha256(raw).hexdigest(),'planned':len(cases),'attempted':len(results),'remaining':len(cases)-len(results),'results':results}); return
   p.print_help()
- except Rejected as e: _emit({'status':'rejected','error_code':e.code,'error':str(e)})
+ except Rejected as e: _emit({'status':'rejected','error_code':e.code,'error':str(e),**{k:v for k,v in vars(e).items() if k in ('request_id','persistence')}})
  except evidence.EvidenceError as e: _emit({'status':'error','error_code':e.code,**e.details})
  except (json.JSONDecodeError,UnicodeDecodeError): _emit({'status':'rejected','error_code':'invalid_json'})
  except OSError: _emit({'status':'unavailable','error_code':'persistence_failed'})

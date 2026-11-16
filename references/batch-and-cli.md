@@ -4,9 +4,9 @@ Paths in commands are relative to the skill package root unless stated otherwise
 
 `ldf_check_claims` (CLI: `ldf judge-claims`) accepts 1–8 unique `{id, claim}` items
 and at most 12 shared evidence blocks. It returns `status=battery` and ordered
-per-claim results, not one verdict for the batch. Inspect every result: uncached
-entries carry their own status; cached entries currently omit status and may
-lack the original citations/rationale. Provider failures are per claim.
+per-claim results, not one verdict for the batch. Inspect every result and its
+persistence status. Cached results include the original citations and rationale;
+older incomplete receipts are not reused. Provider failures are per claim.
 
 Cache matching includes the claim, evidence, flow, caller request ID and client,
 not the model/settings or age. There is no TTL. Use `ldf_check_claim` / `ldf judge`

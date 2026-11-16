@@ -6,7 +6,7 @@ Local Decision Framework keeps execution metadata by default. This supports trac
 
 `LDF_DATA_DIR` selects a private local data directory, defaulting to the existing local data directory. `LDF_RECEIPTS_FILE`, `LDF_FEEDBACK_FILE`, and `LDF_CAPTURE_DIR` can override individual paths. Do not put runtime storage inside version-controlled source.
 
-Receipts record status/verdict, timing, safe HTTP/validation diagnostics, configured/returned model IDs, settings, prompt/schema identities and source/input hashes. Unknown usage is null. Provider credentials and error bodies are not logged as diagnostics.
+Receipts record status/verdict, timing, safe HTTP/validation diagnostics, configured/returned model IDs, settings, prompt/schema identities and source/input hashes. Judged batch claim receipts also record citation IDs and the model's rationale for cache reuse. Rationales can repeat sensitive evidence; protect receipt files accordingly. Unknown usage and unavailable package or Git provenance are null. Provider credentials and error bodies are not logged as diagnostics. Invalid packets reaching the core produce a minimal rejection receipt without input content. Malformed JSON or requests rejected before reaching the core are not receipted. Corrupt storage records cause an explicit error with their file and line number; repair the storage before continuing.
 
 Input capture and response capture are separate opt-ins:
 
@@ -25,28 +25,20 @@ core. Invalid input rejects the batch before the loop; an operational failure
 returned for a claim is recorded in that claim's result and processing continues.
 The top-level `status=battery` does not assert that every claim was judged.
 
-The response contains `battery_hash`, a numeric `cached` count and ordered
-`results`. Each item has `claim_id`, `request_id`, `duration_ms` and `cached`.
-Uncached items carry their own `status`; judged ones also carry `verdict`,
-`evidence_ids` and `rationale`. Failed items can carry `error_code` without a
-verdict. Cached items currently omit `status` and reuse a prior receipt ID.
-The separate battery receipt records claim/cache counts and a `provider_calls`
-counter. That counter counts cache misses passed to the judge, not confirmed
-HTTP requests (a configuration failure may occur before HTTP).
+The response contains the batch `request_id`, `battery_hash`, `cached`, `cache_misses`, `http_attempts`, `persistence` and ordered `results`. Each item identifies the claim and source receipt and reports status, persistence and whether it was cached. Judged items include verdict, citations and rationale; failed items can carry an error code. A cached item references its original receipt. Fresh claim receipts link back to their batch and claim ID; the batch receipt lists all source receipt IDs, including cache hits. If a receipt write fails, completed results are still returned with `persistence=failed` at the affected level.
+
+`cache_misses` counts claims passed to the judge; `http_attempts` counts requests started at the HTTP transport, including failed requests. The legacy `provider_calls` field in new batch receipts equals `http_attempts`; older receipts counted misses instead.
 
 Cache matching hashes the normalized single-claim packet: claim text, shared
 evidence (including order and supplied fields), flow, caller request ID and
 resolved client. The batch's claim ID is not part of that per-claim key. Reuse
-requires an exact input hash and a prior `status=judged` receipt. Receipts from
-single-claim calls only match when their normalized packet shape matches too.
+requires an exact input hash and a prior `status=judged` receipt with a complete result. Single-claim receipts do not normally contain that result and are not reused.
 
 Current limits:
 
 - There is no TTL, cache-clear command or model/prompt/settings-aware invalidation.
   Changing provider settings alone does not force a fresh batch verdict.
-- Default receipts retain the verdict but not the response's citation IDs or
-  rationale. A cache hit can therefore return empty `evidence_ids` and `rationale`;
-  it is not a complete replay of the original cited response.
+- Older receipts without citation IDs and rationale are not cache hits; the claim is judged again.
 - Use `ldf judge` / `ldf_check_claim` for a fresh cited check; those paths do not
   use the batch cache. A deliberately separate `LDF_DATA_DIR` isolates a new
   experiment's history without deleting existing receipts.

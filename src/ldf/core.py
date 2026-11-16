@@ -1,4 +1,5 @@
-import hashlib, json, os, pathlib, time, urllib.error, urllib.parse, urllib.request, uuid
+import hashlib, json, os, pathlib, subprocess, time, urllib.error, urllib.parse, urllib.request, uuid
+from importlib.metadata import PackageNotFoundError, version
 from datetime import datetime, timezone
 
 MAX_CLAIM=4000; MAX_BLOCKS=12; MAX_TEXT=12000; MAX_TOTAL=40000; MAX_PACKET_BYTES=50000
@@ -25,10 +26,12 @@ def _git_dirty():
  except Exception: return None
 def _git_revision():
  try:
-  root=pathlib.Path(__file__).resolve().parents[2]; head=(root/'.git/HEAD').read_text().strip()
-  if head.startswith('ref: '): return (root/'.git'/head[5:]).read_text().strip()
-  return head
- except OSError: return None
+  root=pathlib.Path(__file__).resolve().parents[2]
+  return subprocess.check_output(['git','-C',str(root),'rev-parse','HEAD'],stderr=subprocess.DEVNULL,text=True).strip()
+ except (OSError,subprocess.CalledProcessError): return None
+def _package_version():
+ try: return version('local-decision-framework')
+ except PackageNotFoundError: return None
 def _paths():
  base=pathlib.Path(_env('DATA_DIR')) if _env('DATA_DIR') else ((pathlib.Path.home()/'.local/share/ldf') if (pathlib.Path.home()/'.local/share/ldf').exists() or not (pathlib.Path.home()/'.local/share/jev').exists() else pathlib.Path.home()/'.local/share/jev')
  return pathlib.Path(_env('RECEIPTS_FILE',base/'receipts.jsonl')),pathlib.Path(_env('FEEDBACK_FILE',base/'feedback.jsonl')),pathlib.Path(_env('CAPTURE_DIR',base/'captures'))
@@ -39,10 +42,13 @@ def _append(path,row):
 def _rows(path):
  if not path.exists(): return []
  rows=[]
- with path.open() as f:
-  for line in f:
-   try: rows.append(json.loads(line))
-   except (json.JSONDecodeError,UnicodeDecodeError): continue
+ with path.open('rb') as f:
+  for number,line in enumerate(f,1):
+   try:
+    row=json.loads(line)
+    if not isinstance(row,dict): raise ValueError('expected object')
+    rows.append(row)
+   except (ValueError,UnicodeDecodeError) as e: raise Rejected('corrupt_storage',f'{path}: invalid record at line {number}') from e
  return rows
 def validate(p):
  if not isinstance(p,dict) or set(p)-{'claim','evidence','flow','request_id','client'}: raise Rejected('invalid_packet','expected claim, evidence, optional flow/request_id/client')
@@ -88,15 +94,24 @@ def _timeout(v):
  except (ValueError,TypeError): return None
  return x if 1<=x<=300 else None
 def _capture_enabled(explicit): return bool(explicit or _env('CAPTURE','').lower() in ('1','true','yes'))
-def judge(packet,config=None,*,capture=False,capture_response=None,parent_request_id=None):
- p=validate(packet); client=p.get('client') or (_env('CLIENT_NAME') or None); cfg=config or {}; url=cfg.get('url') or _env('BASE_URL'); model=cfg.get('model') or _env('MODEL'); key=cfg.get('key') or _env('API_KEY'); rid=uuid.uuid4().hex; flow=p.get('flow','direct')
+def _record_rejection(e,kind):
+ e.request_id=uuid.uuid4().hex
+ try:
+  _append(_paths()[0],{'receipt_schema':RECEIPT_SCHEMA,'request_id':e.request_id,'timestamp':datetime.now(timezone.utc).isoformat(),'kind':kind,'status':'rejected','failure_code':e.code})
+  e.persistence='recorded'
+ except OSError: e.persistence='failed'
+def judge(packet,config=None,*,capture=False,capture_response=None,parent_request_id=None,battery_request_id=None,claim_id=None):
+ try: p=validate(packet)
+ except Rejected as e:
+  _record_rejection(e,'claim'); raise
+ client=p.get('client') or (_env('CLIENT_NAME') or None); cfg=config or {}; url=cfg.get('url') or _env('BASE_URL'); model=cfg.get('model') or _env('MODEL'); key=cfg.get('key') or _env('API_KEY'); rid=uuid.uuid4().hex; flow=p.get('flow','direct')
  timeout=_timeout(cfg.get('timeout',_env('TIMEOUT','90')))
  try: limit=int(cfg.get('max_tokens',_env('MAX_OUTPUT_TOKENS','2400'))); assert 1<=limit<=8192
  except (ValueError,TypeError,AssertionError): limit=None
  effort=cfg.get('reasoning_effort',_env('REASONING_EFFORT')); mode=cfg.get('output_mode') or _env('OUTPUT_MODE','json_object')
  if mode not in ('json_schema','json_object','plain'): mode='invalid'
  fingerprint=_json_hash({'url':url,'model':model,'flow':flow,'timeout':timeout,'max_tokens':limit,'reasoning_effort':effort,'output_mode':mode,'temperature':0})
- start=time.monotonic(); actual=None; status='unavailable'; code='not_configured'; stage='configuration'; http_status=None; finish=None; usage=None; raw_response=None; request_body=None
+ start=time.monotonic(); actual=None; status='unavailable'; code='not_configured'; stage='configuration'; http_status=None; finish=None; usage=None; raw_response=None; request_body=None; http_attempted=False
  if timeout is None: status,code='rejected','invalid_timeout'
  elif limit is None: status,code='rejected','invalid_output_token_limit'
  elif mode=='invalid': status,code='rejected','invalid_output_mode'
@@ -119,8 +134,9 @@ def judge(packet,config=None,*,capture=False,capture_response=None,parent_reques
     try: key=pathlib.Path(cfg.get('key_file') or _env('API_KEY_FILE')).read_text().strip()
     except OSError: raise RuntimeError('key_file_unavailable')
    req=urllib.request.Request(url.rstrip('/')+'/chat/completions',json.dumps(request_body).encode(),{'Content-Type':'application/json',**({'Authorization':'Bearer '+key} if key else {})})
+   http_attempted=True
    with urllib.request.urlopen(req,timeout=timeout) as r: http_status=r.status; data=json.loads(r.read(2_000_000))
-   actual=data.get('model'); choice=data['choices'][0]; finish=choice.get('finish_reason'); usage=data.get('usage'); raw_response=json.dumps(data,ensure_ascii=False)
+   actual=data.get('model'); usage=data.get('usage'); raw_response=json.dumps(data,ensure_ascii=False); choice=data['choices'][0]; finish=choice.get('finish_reason')
    local=strict_result(choice['message']['content'],{b['id'] for b in p['evidence']},finish); status='judged'; code=None; stage='complete'
   except urllib.error.HTTPError as e:
    http_status=e.code; status='unavailable'; code='provider_http_'+str(e.code); stage='http'
@@ -142,12 +158,14 @@ def judge(packet,config=None,*,capture=False,capture_response=None,parent_reques
    with os.fdopen(fd,'w') as f: json.dump(cap,f,ensure_ascii=False); f.write('\n'); f.flush(); os.fsync(f.fileno())
    capture_path=str(path)
   except OSError: capture_error='capture_storage_failed'
- receipt={'receipt_schema':RECEIPT_SCHEMA,'request_id':rid,'parent_request_id':parent_request_id,'timestamp':datetime.now(timezone.utc).isoformat(),'package_version':'0.1.0','git_revision':_git_revision(),'prompt_id':PROMPT_ID,'prompt_version':PROMPT_VERSION,'prompt_hash':_json_hash(prompt),'output_schema_id':OUTPUT_SCHEMA_ID,'output_schema_version':OUTPUT_SCHEMA_VERSION,'output_schema_hash':_schema_hash(),'wire_schema_hash':_json_hash(_wire_schema(p)) if request_body else None,'source_fingerprint':_source_fingerprint(),'flow':flow,'caller_request_id':p.get('request_id'),'client':client,'timeout':timeout,'max_output_tokens':limit,'reasoning_effort':effort,'configured_model':model,'actual_model':actual,'settings':{'temperature':0,'max_output_tokens':limit,'timeout':timeout,'reasoning_effort':effort,'output_mode':mode},'config_fingerprint':fingerprint,'input_hash':_json_hash(p),'evidence_hash':_json_hash(p['evidence']),'duration_ms':duration,'http_status':http_status,'finish_reason':finish,'token_usage':usage,'parse_stage':stage,'failure_code':code,'diagnostic_hash':_json_hash({'http_status':http_status,'finish_reason':finish,'stage':stage,'failure_code':code,'usage':usage}),'status':status,**({'verdict':local['verdict']} if status=='judged' else {})}
+ receipt={'receipt_schema':RECEIPT_SCHEMA,'request_id':rid,'parent_request_id':parent_request_id,'timestamp':datetime.now(timezone.utc).isoformat(),'package_version':_package_version(),'git_revision':_git_revision(),'prompt_id':PROMPT_ID,'prompt_version':PROMPT_VERSION,'prompt_hash':_json_hash(prompt),'output_schema_id':OUTPUT_SCHEMA_ID,'output_schema_version':OUTPUT_SCHEMA_VERSION,'output_schema_hash':_schema_hash(),'wire_schema_hash':_json_hash(_wire_schema(p)) if request_body else None,'source_fingerprint':_source_fingerprint(),'flow':flow,'caller_request_id':p.get('request_id'),'client':client,'timeout':timeout,'max_output_tokens':limit,'reasoning_effort':effort,'configured_model':model,'actual_model':actual,'settings':{'temperature':0,'max_output_tokens':limit,'timeout':timeout,'reasoning_effort':effort,'output_mode':mode},'config_fingerprint':fingerprint,'input_hash':_json_hash(p),'evidence_hash':_json_hash(p['evidence']),'duration_ms':duration,'http_status':http_status,'finish_reason':finish,'token_usage':usage,'parse_stage':stage,'failure_code':code,'diagnostic_hash':_json_hash({'http_status':http_status,'finish_reason':finish,'stage':stage,'failure_code':code,'usage':usage}),'status':status,**({'verdict':local['verdict']} if status=='judged' else {})}
+ receipt.update(battery_request_id=battery_request_id,claim_id=claim_id,http_attempted=http_attempted)
+ if status=='judged' and battery_request_id: receipt.update(evidence_ids=local['evidence_ids'],rationale=local['rationale'])
  if capture_path: receipt.update(capture_path=capture_path,capture_hash=capture_hash)
  if capture_error: receipt.update(capture_error=capture_error)
  try: _append(_paths()[0],receipt); persisted=True
  except OSError: persisted=False
- result={'status':status,'request_id':rid,'duration_ms':duration,'persistence':'recorded' if persisted else 'failed'}
+ result={'status':status,'request_id':rid,'duration_ms':duration,'persistence':'recorded' if persisted else 'failed','http_attempted':http_attempted}
  if capture_error: result.update(capture_persistence='failed',capture_error=capture_error)
  if code: result['error_code']=code
  if status=='judged': result.update(local)
@@ -206,24 +224,30 @@ def validate_battery(b):
  if len(json.dumps(b,ensure_ascii=False).encode())>MAX_PACKET_BYTES*2: raise Rejected('packet_bytes_limit','battery exceeds size limit')
  return b
 def judge_claims(b,config=None,*,capture=False):
- b=validate_battery(b); client=b.get('client') or (_env('CLIENT_NAME') or None); cfg=config or {}
+ try: b=validate_battery(b)
+ except Rejected as e:
+  _record_rejection(e,'battery'); raise
+ client=b.get('client') or (_env('CLIENT_NAME') or None); cfg=config or {}
  # Cache probe must hash the exact packet judge() receives and hashes, key-for-key.
- flow=b.get('flow','direct'); results=[]; misses=[]; bh=_json_hash(b)
+ flow=b.get('flow','direct'); results=[]; misses=[]; bh=_json_hash(b); battery_id=uuid.uuid4().hex
  def probe_packet(c): return {'claim':c['claim'],'evidence':b['evidence'],'flow':flow,'request_id':b.get('request_id'),'client':client}
  for c in b['claims']:
   hit=_battery_cache_lookup(_json_hash(probe_packet(c)))
   if hit is not None: results.append({'claim_id':c['id'],**hit,'cached':True}); continue
-  r=judge({'claim':c['claim'],'evidence':b['evidence'],'flow':b.get('flow','direct'),'request_id':b.get('request_id'),'client':client},cfg,capture=capture)
+  r=judge(probe_packet(c),cfg,capture=capture,battery_request_id=battery_id,claim_id=c['id'])
   entry={'claim_id':c['id']}
-  entry.update({k:r[k] for k in ('status','request_id','duration_ms') if k in r})
+  entry.update({k:r[k] for k in ('status','request_id','duration_ms','persistence','http_attempted','capture_persistence','capture_error') if k in r})
   if r.get('verdict') is not None: entry['verdict']=r['verdict']; entry['evidence_ids']=r.get('evidence_ids',[]); entry['rationale']=r.get('rationale','')
   if r.get('error_code'): entry['error_code']=r['error_code']
   entry['cached']=False
   results.append(entry); misses.append(c['id'])
- _append(_paths()[0],{'receipt_schema':RECEIPT_SCHEMA,'request_id':uuid.uuid4().hex,'timestamp':datetime.now(timezone.utc).isoformat(),'kind':'battery','battery_hash':bh,'claims':len(b['claims']),'cached':sum(1 for x in results if x['cached']),'provider_calls':len(misses),'status':'battery','duration_ms':sum(x.get('duration_ms',0) for x in results if not x['cached']),'client':client})
- return {'status':'battery','battery_hash':bh,'cached':sum(1 for x in results if x['cached']),'results':results}
+ cached=sum(1 for x in results if x['cached']); attempts=sum(1 for x in results if x.get('http_attempted'))
+ receipt={'receipt_schema':RECEIPT_SCHEMA,'request_id':battery_id,'timestamp':datetime.now(timezone.utc).isoformat(),'kind':'battery','battery_hash':bh,'claims':len(b['claims']),'cached':cached,'cache_misses':len(misses),'http_attempts':attempts,'provider_calls':attempts,'status':'battery','duration_ms':sum(x.get('duration_ms',0) for x in results if not x['cached']),'client':client,'claim_receipts':[{'claim_id':x['claim_id'],'request_id':x['request_id'],'cached':x['cached']} for x in results]}
+ try: _append(_paths()[0],receipt); persisted=True
+ except OSError: persisted=False
+ return {'status':'battery','request_id':battery_id,'battery_hash':bh,'cached':cached,'cache_misses':len(misses),'http_attempts':attempts,'persistence':'recorded' if persisted else 'failed','results':results}
 def _battery_cache_lookup(h):
  for r in reversed(_rows(_paths()[0])):
-  if r.get('input_hash')==h and r.get('status')=='judged' and r.get('verdict'):
-   return {'verdict':r['verdict'],'evidence_ids':r.get('evidence_ids') or [],'rationale':r.get('rationale',''),'request_id':r.get('request_id'),'duration_ms':0}
+  if r.get('input_hash')==h and r.get('status')=='judged' and r.get('verdict') and 'evidence_ids' in r and 'rationale' in r:
+   return {'status':'judged','verdict':r['verdict'],'evidence_ids':r['evidence_ids'],'rationale':r['rationale'],'request_id':r['request_id'],'duration_ms':0,'persistence':'recorded','http_attempted':False}
  return None
