@@ -182,17 +182,15 @@ printf '%s\n' '{
 }' | .venv/bin/ldf judge-claims
 ```
 
-The result has `status: "battery"`, `battery_hash`, a numeric `cached` count and
-`results` in input order. Each result identifies `claim_id`, `request_id` and
-`cached`. Uncached entries have their own `status`; a judged entry also has a
-verdict and citations. A provider failure for one claim does not make the whole
-batch supported or prevent later claims from being attempted. Invalid batch
-input is rejected before the loop.
+The result has `status: "battery"`, a batch `request_id`, counts for cache hits,
+misses and HTTP attempts, and `results` in input order. Each result identifies the
+claim and source receipt, status, persistence and cache state. Judged results
+include citations and rationale. A provider failure for one claim does not prevent
+later claims from being attempted. Invalid batch input is rejected before the loop.
 
-Previously judged matching inputs can return cached verdicts without another
-model call. Cached entries currently omit `status` and can lack citations and
-rationale retained by the original response. There is no TTL or automatic
-model/settings invalidation. For a fresh cited check, use the single-claim tool
+Previously judged matching inputs can return complete cached results without another
+model call. Batch claim receipts retain rationales, which can repeat sensitive evidence.
+There is no TTL or automatic model/settings invalidation. For a fresh cited check, use the single-claim tool
 or `ldf judge`. Read the [batch/cache contract](docs/observability-replay.md#batch-results-and-cache)
 before using batches in an automated decision path.
 
