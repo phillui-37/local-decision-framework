@@ -228,11 +228,15 @@ def judge_claims(b,config=None,*,capture=False):
  except Rejected as e:
   _record_rejection(e,'battery'); raise
  client=b.get('client') or (_env('CLIENT_NAME') or None); cfg=config or {}
+ try:
+  ttl=int(_env('CACHE_TTL_SECONDS','86400'))
+  if ttl<0: raise ValueError
+ except (ValueError,TypeError): raise Rejected('invalid_cache_ttl','LDF_CACHE_TTL_SECONDS must be a nonnegative integer')
  # Cache probe must hash the exact packet judge() receives and hashes, key-for-key.
  flow=b.get('flow','direct'); results=[]; misses=[]; bh=_json_hash(b); battery_id=uuid.uuid4().hex
  def probe_packet(c): return {'claim':c['claim'],'evidence':b['evidence'],'flow':flow,'request_id':b.get('request_id'),'client':client}
  for c in b['claims']:
-  hit=_battery_cache_lookup(_json_hash(probe_packet(c)))
+  hit=_battery_cache_lookup(_json_hash(probe_packet(c)),ttl)
   if hit is not None: results.append({'claim_id':c['id'],**hit,'cached':True}); continue
   r=judge(probe_packet(c),cfg,capture=capture,battery_request_id=battery_id,claim_id=c['id'])
   entry={'claim_id':c['id']}
@@ -246,8 +250,15 @@ def judge_claims(b,config=None,*,capture=False):
  try: _append(_paths()[0],receipt); persisted=True
  except OSError: persisted=False
  return {'status':'battery','request_id':battery_id,'battery_hash':bh,'cached':cached,'cache_misses':len(misses),'http_attempts':attempts,'persistence':'recorded' if persisted else 'failed','results':results}
-def _battery_cache_lookup(h):
+def _battery_cache_lookup(h,ttl):
+ now=datetime.now(timezone.utc)
  for r in reversed(_rows(_paths()[0])):
   if r.get('input_hash')==h and r.get('status')=='judged' and r.get('verdict') and 'evidence_ids' in r and 'rationale' in r:
-   return {'status':'judged','verdict':r['verdict'],'evidence_ids':r['evidence_ids'],'rationale':r['rationale'],'request_id':r['request_id'],'duration_ms':0,'persistence':'recorded','http_attempted':False}
+   try:
+    stamp=datetime.fromisoformat(r['timestamp'].replace('Z','+00:00'))
+    if stamp.utcoffset() is None: continue
+    age=(now-stamp).total_seconds()
+   except (KeyError,ValueError,TypeError,AttributeError,OverflowError): continue
+   if 0<=age<ttl:
+    return {'status':'judged','verdict':r['verdict'],'evidence_ids':r['evidence_ids'],'rationale':r['rationale'],'request_id':r['request_id'],'duration_ms':0,'persistence':'recorded','http_attempted':False}
  return None

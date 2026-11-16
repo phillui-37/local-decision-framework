@@ -34,9 +34,17 @@ evidence (including order and supplied fields), flow, caller request ID and
 resolved client. The batch's claim ID is not part of that per-claim key. Reuse
 requires an exact input hash and a prior `status=judged` receipt with a complete result. Single-claim receipts do not normally contain that result and are not reused.
 
+Cache entries expire after 86400 seconds (24 hours) by default. Set
+`LDF_CACHE_TTL_SECONDS` to a nonnegative integer to change the lifetime; `0`
+disables reuse. The legacy `JEV_CACHE_TTL_SECONDS` name also works. Invalid
+values reject the batch with `invalid_cache_ttl`. A receipt is reusable only
+when its timezone-aware ISO 8601 timestamp is not in the future and its age is
+strictly less than the TTL. Missing, malformed, timezone-less and future
+timestamps are cache misses; receipts remain in storage.
+
 Current limits:
 
-- There is no TTL, cache-clear command or model/prompt/settings-aware invalidation.
+- There is no cache-clear command or model/prompt/settings-aware invalidation.
   Changing provider settings alone does not force a fresh batch verdict.
 - Older receipts without citation IDs and rationale are not cache hits; the claim is judged again.
 - Use `ldf judge` / `ldf_check_claim` for a fresh cited check; those paths do not

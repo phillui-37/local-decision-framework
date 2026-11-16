@@ -112,6 +112,7 @@ export LDF_API_KEY_FILE="$HOME/.config/your-runtime/api-key"
 | `LDF_TIMEOUT` | Per-call timeout, 1–300 seconds; default 90 |
 | `LDF_MAX_OUTPUT_TOKENS` | Output budget, 1–8192; default 2400 |
 | `LDF_REASONING_EFFORT` | Optional provider-specific setting |
+| `LDF_CACHE_TTL_SECONDS` | Batch cache lifetime in seconds; default 86400 (24 hours), 0 disables reuse |
 | `LDF_DATA_DIR` | Private receipt/capture storage; default `~/.local/share/ldf` (falls back to a legacy `~/.local/share/jev` if present) |
 
 Every `LDF_*` setting also accepts its legacy `JEV_*` spelling, so existing configurations keep working unchanged.
@@ -190,7 +191,7 @@ later claims from being attempted. Invalid batch input is rejected before the lo
 
 Previously judged matching inputs can return complete cached results without another
 model call. Batch claim receipts retain rationales, which can repeat sensitive evidence.
-There is no TTL or automatic model/settings invalidation. For a fresh cited check, use the single-claim tool
+Cached results expire after 24 hours by default; model/settings changes do not invalidate them. For a fresh cited check, use the single-claim tool
 or `ldf judge`. Read the [batch/cache contract](docs/observability-replay.md#batch-results-and-cache)
 before using batches in an automated decision path.
 

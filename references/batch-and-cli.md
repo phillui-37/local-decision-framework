@@ -9,8 +9,9 @@ persistence status. Cached results include the original citations and rationale;
 older incomplete receipts are not reused. Provider failures are per claim.
 
 Cache matching includes the claim, evidence, flow, caller request ID and client,
-not the model/settings or age. There is no TTL. Use `ldf_check_claim` / `ldf judge`
-when a fresh cited verdict is required. See the [batch/cache contract](../docs/observability-replay.md#batch-results-and-cache).
+not the model/settings. Entries expire after 24 hours by default; configure
+`LDF_CACHE_TTL_SECONDS` or set it to `0` to disable reuse. Use `ldf_check_claim` /
+`ldf judge` when a fresh cited verdict is required. See the [batch/cache contract](../docs/observability-replay.md#batch-results-and-cache).
 
 ## CLI fallback
 
