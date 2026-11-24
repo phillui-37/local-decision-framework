@@ -12,7 +12,8 @@ Discover `ldf_check_claim` or a working local CLI. Supply one exact claim and ve
 Only `status=judged` supplies a verdict. Supported means supported by this packet; insufficient evidence leaves the premise open. Unavailable, rejected and invalid output supply no verdict. A result is not permission, independent source verification or proof of task completion.
 
 - For unfamiliar packet/source requirements or a recipe, read [claim contract](references/claim-contract.md).
-- For absent/broken runtime or registration, read [runtime setup](references/runtime.md). Do not reinstall a working runtime.
+- For `necessary` vs opt-in `development` checkpoint mode rules, read [check modes](references/modes.md).
+- For absent/broken runtime, Windows env hydration, or registration, read [runtime setup](references/runtime.md). Do not reinstall a working runtime.
 - For batch/cache behavior or CLI stdin JSON, read [batch and CLI](references/batch-and-cli.md). Uncached batch claims make separate provider calls; a fresh cited verdict needs the single-claim path.
 - At normal wrap-up, record useful observed narrowing/corrections/outcomes under [feedback](references/feedback.md). Leave unknown baselines unknown; do not start extra checks for bookkeeping.
 
